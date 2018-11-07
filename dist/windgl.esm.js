@@ -195,7 +195,11 @@ WindGL.prototype.setSource = function setSource (ref) {
   getJSON(url, function (windData) {
     var windImage = new Image();
     windData.image = windImage;
-    windImage.src = windData.tiles[0].replace(/{(z|x|y)}/g, "0");
+    var url = windData.tiles[0].replace(/{(z|x|y)}/g, "0");
+    if (new URL(url).origin !== window.location.origin) {
+      windImage.crossOrigin = "anonymous";
+    }
+    windImage.src = url;
     windImage.onload = function () { return this$1.setWind(windData); };
   });
 };
