@@ -84,7 +84,11 @@ class WindGL {
     getJSON(url, windData => {
       const windImage = new Image();
       windData.image = windImage;
-      windImage.src = windData.tiles[0].replace(/{(z|x|y)}/g, "0");
+      const url = windData.tiles[0].replace(/{(z|x|y)}/g, "0");
+      if (new URL(url).origin !== window.location.origin) {
+        windImage.crossOrigin = "anonymous";
+      }
+      windImage.src = url;
       windImage.onload = () => this.setWind(windData);
     });
   }
