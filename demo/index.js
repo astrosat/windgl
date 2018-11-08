@@ -23,5 +23,15 @@ var map = new mapboxgl.Map({
     }
   });
   window.wind = wind;
-  map.addLayer(wind, "road-pedestrian-case");
+  // map.addLayer(wind);
+  // map.addLayer(wind, "road-pedestrian-case");
+  const mapStyle = map.getStyle();
+
+  const newMapStyle = {
+    ...mapStyle,
+    layers: [...mapStyle.layers, wind]
+  };
+
+  map.setStyle(newMapStyle);
+  console.log("WIND MAP: ", map.getStyle());
 });

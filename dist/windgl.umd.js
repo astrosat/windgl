@@ -305,15 +305,17 @@
 
   WindGL.prototype.setWind = function setWind (windData) {
     this.windData = windData;
-    this.windTexture = createTexture(
-      this.gl,
-      this.gl.LINEAR,
-      windData.image
-    );
+    if (this.gl) {
+      this.windTexture = createTexture(
+        this.gl,
+        this.gl.LINEAR,
+        windData.image
+      );
+    }
     if (this.map) {
       this.map.triggerRepaint();
     }
-  };
+};
 
   WindGL.prototype.prerender = function prerender (gl, matrix) {
     if (this.windData) { this.draw(gl, matrix); }

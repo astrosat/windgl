@@ -188,11 +188,13 @@ class WindGL {
 
   setWind(windData) {
     this.windData = windData;
-    this.windTexture = util.createTexture(
-      this.gl,
-      this.gl.LINEAR,
-      windData.image
-    );
+    if (this.gl) {
+      this.windTexture = util.createTexture(
+        this.gl,
+        this.gl.LINEAR,
+        windData.image
+      );
+    }
     if (this.map) {
       this.map.triggerRepaint();
     }

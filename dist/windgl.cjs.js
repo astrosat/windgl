@@ -301,11 +301,13 @@ prototypeAccessors.numParticles.get = function () {
 
 WindGL.prototype.setWind = function setWind (windData) {
   this.windData = windData;
-  this.windTexture = createTexture(
-    this.gl,
-    this.gl.LINEAR,
-    windData.image
-  );
+  if (this.gl) {
+    this.windTexture = createTexture(
+      this.gl,
+      this.gl.LINEAR,
+      windData.image
+    );
+  }
   if (this.map) {
     this.map.triggerRepaint();
   }
