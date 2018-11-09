@@ -7,5 +7,5 @@
   "uMax": 26.8,
   "vMin": -21.57,
   "vMax": 21.42,
-  "tiles": ["wind/{z}.png"]
+  "tiles": ["http://localhost:1337/demo/wind/{z}.png"]
 }

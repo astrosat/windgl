@@ -16,7 +16,6 @@ var map = new mapboxgl.Map({
   container: "map",
   style: "mapbox://styles/mapbox/light-v9"
 }).on("load", function() {
-  map.repaint = true;
   const wind = windGL({
     id: "wind",
     source: {
