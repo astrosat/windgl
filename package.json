@@ -34,7 +34,7 @@
     "prettier": "^1.14.3",
     "rollup": "^0.60.7",
     "rollup-plugin-buble": "^0.19.0",
-    "rollup-plugin-string": "^2.0.2",
+    "rollup-plugin-glsl": "^1.2.0",
     "rollup-watch": "^3.2.2",
     "st": "^1.2.0"
   },
