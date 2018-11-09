@@ -95,6 +95,7 @@ class WindGL {
 
   onAdd(map, gl) {
     this.gl = gl;
+    this.map = map;
     this.drawProgram = util.createProgram(gl, drawVert, drawFrag);
     this.screenProgram = util.createProgram(gl, quadVert, screenFrag);
     this.updateProgram = util.createProgram(gl, quadVert, updateFrag);
@@ -115,6 +116,7 @@ class WindGL {
 
   onRemove(map) {
     delete this.gl;
+    delete this.map;
     map.off("resize", this.resize);
   }
 
@@ -191,6 +193,9 @@ class WindGL {
       this.gl.LINEAR,
       windData.image
     );
+    if (this.map) {
+      this.map.triggerRepaint();
+    }
   }
 
   prerender(gl, matrix) {
@@ -200,6 +205,7 @@ class WindGL {
   render(gl, matrix) {
     if (this.windData) {
       this.drawTexture(this.screenTexture, 1.0);
+      this.map.triggerRepaint();
     }
   }
 

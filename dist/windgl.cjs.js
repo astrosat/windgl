@@ -208,6 +208,7 @@ WindGL.prototype.setSource = function setSource (ref) {
 
 WindGL.prototype.onAdd = function onAdd (map, gl) {
   this.gl = gl;
+  this.map = map;
   this.drawProgram = createProgram(gl, drawVert, drawFrag);
   this.screenProgram = createProgram(gl, quadVert, screenFrag);
   this.updateProgram = createProgram(gl, quadVert, updateFrag);
@@ -228,6 +229,7 @@ WindGL.prototype.onAdd = function onAdd (map, gl) {
 
 WindGL.prototype.onRemove = function onRemove (map) {
   delete this.gl;
+  delete this.map;
   map.off("resize", this.resize);
 };
 
@@ -304,6 +306,9 @@ WindGL.prototype.setWind = function setWind (windData) {
     this.gl.LINEAR,
     windData.image
   );
+  if (this.map) {
+    this.map.triggerRepaint();
+  }
 };
 
 WindGL.prototype.prerender = function prerender (gl, matrix) {
@@ -313,6 +318,7 @@ WindGL.prototype.prerender = function prerender (gl, matrix) {
 WindGL.prototype.render = function render (gl, matrix) {
   if (this.windData) {
     this.drawTexture(this.screenTexture, 1.0);
+    this.map.triggerRepaint();
   }
 };
 
