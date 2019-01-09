@@ -13,7 +13,7 @@
     "watch": "rollup -c -w",
     "test": "eslint src/*.js demo/index.js data/prepare.js",
     "serve": "st -nc -i index.html",
-    "start": "run-p serve watch"
+    "start": "serve"
   },
   "keywords": [
     "mapboxgl",
@@ -29,7 +29,6 @@
     "eslint": "^3.15.0",
     "eslint-config-prettier": "^3.1.0",
     "eslint-plugin-prettier": "^3.0.0",
-    "npm-run-all": "^4.0.1",
     "pngjs": "^3.0.0",
     "prettier": "^1.14.3",
     "rollup": "^0.60.7",
