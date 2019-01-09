@@ -1,4 +1,4 @@
-# WindGL
+# WindGL - jc-expt
 
 A WebGL-powered visualization of wind power as a custom Mapbox Layer.
 Capable of rendering up to 1 million wind particles at 60fps.
