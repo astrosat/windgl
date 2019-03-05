@@ -19,7 +19,7 @@ var map = new mapboxgl.Map({
   const wind = windGL({
     id: "wind",
     source: {
-      url: "wind/" + windFiles[0] + ".json"
+      url: "wind/" + windFiles[6] + ".json"
     }
   });
   window.wind = wind;

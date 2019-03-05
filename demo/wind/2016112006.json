@@ -6,5 +6,6 @@
   "uMin": -19.38,
   "uMax": 25.57,
   "vMin": -21.19,
-  "vMax": 22.77
+  "vMax": 22.77,
+  "tiles": ["http://localhost:1337/demo/wind/2016112006.png"]
 }
