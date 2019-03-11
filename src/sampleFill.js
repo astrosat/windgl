@@ -4,28 +4,53 @@ import Layer from "./layer";
 import backgroundVert from "./shaders/background.vert.glsl";
 import backgroundFrag from "./shaders/background.frag.glsl";
 
-class Background extends Layer {
+class SampleFill extends Layer {
   constructor(options) {
+    this.propertySpec = {
+      "sample-fill-color": {
+        type: "color",
+        default: [
+          "interpolate",
+          ["linear"],
+          ["get", "speed"],
+          0.0,
+          "#3288bd",
+          10,
+          "#66c2a5",
+          20,
+          "#abdda4",
+          30,
+          "#e6f598",
+          40,
+          "#fee08b",
+          50,
+          "#fdae61",
+          60,
+          "#f46d43",
+          100.0,
+          "#d53e4f"
+        ],
+        doc: "The color of each pixel of this layer",
+        expression: {
+          interpolated: true,
+          parameters: ["zoom", "feature"]
+        },
+        "property-type": "data-driven"
+      },
+      "sample-opacity": {
+        type: "number",
+        default: 1,
+        minimum: 0,
+        maximum: 1,
+        transition: true,
+        expression: {
+          interpolated: true,
+          parameters: ["zoom"]
+        },
+        "property-type": "data-constant"
+      }
+    };
     super(options);
-
-    this._colorRamp = [
-      0.0,
-      "#3288bd",
-      0.1,
-      "#66c2a5",
-      0.2,
-      "#abdda4",
-      0.3,
-      "#e6f598",
-      0.4,
-      "#fee08b",
-      0.5,
-      "#fdae61",
-      0.6,
-      "#f46d43",
-      1.0,
-      "#d53e4f"
-    ];
   }
 
   initialize(map, gl) {
@@ -39,15 +64,17 @@ class Background extends Layer {
       gl,
       new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1])
     );
+  }
 
-    this.setColorRamp(gl, this._colorRamp);
+  setSampleFillColor(expr) {
+    this.buildColorRamp(expr);
   }
 
   setColorRamp(gl, colors) {
     // lookup texture for colorizing the particles according to their speed
     this.colorRampTexture = util.createTexture(
-      gl,
-      gl.LINEAR,
+      this.gl,
+      this.gl.LINEAR,
       getColorRamp(colors),
       16,
       16
@@ -55,7 +82,7 @@ class Background extends Layer {
   }
 
   draw(gl, matrix, dateLineOffset) {
-    const opacity = 0.9;
+    const opacity = this.sampleOpacity;
     const program = this.backgroundProgram;
     gl.useProgram(program.program);
 
@@ -78,22 +105,4 @@ class Background extends Layer {
   }
 }
 
-function getColorRamp(colors) {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  canvas.width = 256;
-  canvas.height = 1;
-
-  const gradient = ctx.createLinearGradient(0, 0, 256, 0);
-  for (let i = 0; i < colors.length; i += 2) {
-    gradient.addColorStop(+colors[i], colors[i + 1]);
-  }
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 256, 1);
-
-  return new Uint8Array(ctx.getImageData(0, 0, 256, 1).data);
-}
-
-export default options => new Background(options);
+export default options => new SampleFill(options);

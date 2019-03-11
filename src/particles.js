@@ -8,11 +8,36 @@ import particleDrawFrag from "./shaders/particle-draw.frag.glsl";
 
 class Particles extends Layer {
   constructor(options) {
+    this.propertySpec = {
+      "particle-color": {
+        type: "color",
+        default: "white",
+        expression: {
+          interpolated: true,
+          parameters: ["zoom", "feature"]
+        },
+        "property-type": "data-driven"
+      },
+      "particle-speed": {
+        type: "number",
+        minimum: 0,
+        default: 0.75,
+        transition: true,
+        expression: {
+          interpolated: true,
+          parameters: ["zoom"]
+        },
+        "property-type": "data-constant"
+      }
+    };
     super(options);
-    this.speedFactor = 0.75; // how fast the particles move
     this.dropRate = 0.003; // how often the particles move to a random place
     this.dropRateBump = 0.01; // drop rate increase relative to individual particle speed
     this._numParticles = 65536;
+  }
+
+  setParticleColor(expr) {
+    this.buildColorRamp(expr);
   }
 
   initializeParticles(gl, count) {
@@ -100,7 +125,7 @@ class Particles extends Layer {
     gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height);
     gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin);
     gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax);
-    gl.uniform1f(program.u_speed_factor, this.speedFactor);
+    gl.uniform1f(program.u_speed_factor, this.particleSpeed);
     gl.uniform1f(program.u_drop_rate, this.dropRate);
     gl.uniform1f(program.u_drop_rate_bump, this.dropRateBump);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -120,11 +145,13 @@ class Particles extends Layer {
 
     util.bindTexture(gl, this.windTexture, 0);
     util.bindTexture(gl, this.particleStateTexture0, 1);
+    util.bindTexture(gl, this.colorRampTexture, 2);
 
     util.bindAttribute(gl, this.particleIndexBuffer, program.a_index, 1);
 
     gl.uniform1i(program.u_wind, 0);
     gl.uniform1i(program.u_particles, 1);
+    gl.uniform1i(program.u_color_ramp, 2);
 
     gl.uniform1f(program.u_particles_res, this.particleStateResolution);
     gl.uniform1f(program.u_dateline_offset, dateLineOffset);
