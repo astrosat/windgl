@@ -39,7 +39,7 @@ describe("wgs84ToMercator", () => {
       Array.from(drawReverse({ u_input: coords }).slice(0, 2));
 
     // mercator is messy around the poles...
-    for (let i = 0.1; i <= 0.9; i += 0.1) {
+    for (let i = 0.1; i <= 1; i += 0.1) {
       const result = mercatorToWGS84(wgs84ToMercator([i, i]));
       expect(result[0]).toBeCloseTo(i, 4);
       expect(result[1]).toBeCloseTo(i, 4);
