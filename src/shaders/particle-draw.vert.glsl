@@ -9,6 +9,7 @@ attribute float a_index;
 uniform sampler2D u_particles;
 uniform float u_particles_res;
 uniform mat4 u_matrix;
+uniform float u_dateline_offset;
 
 varying vec2 v_particle_pos;
 
@@ -25,5 +26,5 @@ void main() {
 
 
     gl_PointSize = 2.0;
-    gl_Position = u_matrix * vec4(v_particle_pos.xy, 0, 1);
+    gl_Position = u_matrix * vec4(v_particle_pos.xy + vec2(u_dateline_offset, 0), 0, 1);
 }

@@ -103,11 +103,6 @@ class Particles extends Layer {
     gl.uniform1f(program.u_speed_factor, this.speedFactor);
     gl.uniform1f(program.u_drop_rate, this.dropRate);
     gl.uniform1f(program.u_drop_rate_bump, this.dropRateBump);
-    // gl.uniformMatrix4fv(
-    //   program.u_inverse_matrix,
-    //   false,
-    //   util.matrixInverse(matrix)
-    // );
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     // swap the particle state textures so the new one becomes the current one
@@ -120,6 +115,19 @@ class Particles extends Layer {
   }
 
   draw(gl, matrix) {
+    const bounds = this.map.getBounds();
+    const eastIter = Math.max(0, Math.ceil((bounds.getEast() - 180) / 360));
+    const westIter = Math.max(0, Math.ceil((bounds.getWest() + 180) / -360));
+    this.drawParticles(gl, matrix, 0);
+    for (let i = 1; i <= eastIter; i++) {
+      this.drawParticles(gl, matrix, i);
+    }
+    for (let i = 1; i <= westIter; i++) {
+      this.drawParticles(gl, matrix, -i);
+    }
+  }
+
+  drawParticles(gl, matrix, dateLineOffset) {
     const program = this.drawProgram;
     gl.useProgram(program.program);
 
@@ -132,6 +140,7 @@ class Particles extends Layer {
     gl.uniform1i(program.u_particles, 1);
 
     gl.uniform1f(program.u_particles_res, this.particleStateResolution);
+    gl.uniform1f(program.u_dateline_offset, dateLineOffset);
     gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin);
     gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax);
 
