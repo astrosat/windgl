@@ -54,7 +54,7 @@ class Background extends Layer {
     );
   }
 
-  draw(gl, matrix) {
+  draw(gl, matrix, dateLineOffset) {
     const opacity = 0.9;
     const program = this.backgroundProgram;
     gl.useProgram(program.program);
@@ -68,14 +68,11 @@ class Background extends Layer {
     gl.uniform1i(program.u_color_ramp, 2);
 
     gl.uniform1f(program.u_opacity, opacity);
+    gl.uniform1f(program.u_dateline_offset, dateLineOffset);
     gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height);
     gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin);
     gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax);
-    gl.uniformMatrix4fv(
-      program.u_inverse_matrix,
-      false,
-      util.matrixInverse(matrix)
-    );
+    gl.uniformMatrix4fv(program.u_matrix, false, matrix);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }

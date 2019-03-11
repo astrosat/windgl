@@ -52,7 +52,7 @@ float windSpeedMagnitude(const vec2 uv) {
 
 void main() {
     // modulus is used to make sure this wraps nicely when zoomed out
-    vec2 tex_pos = mercatorToWGS84(mod(v_tex_pos, 1.0));
+    vec2 tex_pos = mercatorToWGS84(v_tex_pos);
     float speed_t = windSpeedMagnitude(tex_pos);
     // color ramp is encoded in a 16x16 texture
     vec2 ramp_pos = vec2(

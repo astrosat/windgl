@@ -38,7 +38,16 @@ export default class Layer {
 
   render(gl, matrix) {
     if (this.windData) {
-      this.draw(gl, matrix);
+      const bounds = this.map.getBounds();
+      const eastIter = Math.max(0, Math.ceil((bounds.getEast() - 180) / 360));
+      const westIter = Math.max(0, Math.ceil((bounds.getWest() + 180) / -360));
+      this.draw(gl, matrix, 0);
+      for (let i = 1; i <= eastIter; i++) {
+        this.draw(gl, matrix, i);
+      }
+      for (let i = 1; i <= westIter; i++) {
+        this.draw(gl, matrix, -i);
+      }
     }
   }
 }
