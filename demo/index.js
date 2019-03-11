@@ -16,12 +16,15 @@ var map = new mapboxgl.Map({
   container: "map",
   style: "mapbox://styles/mapbox/light-v9"
 }).on("load", function() {
-  const wind = windGL({
-    id: "wind",
-    source: {
-      url: "wind/" + windFiles[6] + ".json"
-    }
+  const source = windGL.source("wind/" + windFiles[6] + ".json");
+  const wind = windGL.background({
+    id: "windbg",
+    source
   });
-  window.wind = wind;
   map.addLayer(wind, "road-pedestrian-case");
+  const particles = windGL.particles({
+    id: "windparticles",
+    source
+  });
+  map.addLayer(particles, "waterway-label");
 });

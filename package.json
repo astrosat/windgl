@@ -11,7 +11,7 @@
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
-    "test": "eslint src/*.js demo/index.js data/prepare.js",
+    "test": "jest",
     "serve": "st -nc -i index.html",
     "start": "run-p serve watch"
   },
@@ -26,14 +26,23 @@
   ],
   "license": "ISC",
   "devDependencies": {
+    "@babel/core": "^7.3.4",
+    "@babel/preset-env": "^7.3.4",
+    "babel-jest": "^24.3.1",
+    "babel-plugin-glslify": "^2.0.0",
     "eslint": "^3.15.0",
     "eslint-config-prettier": "^3.1.0",
     "eslint-plugin-prettier": "^3.0.0",
+    "jest": "^24.3.1",
+    "nogl-shader-output": "^1.4.2",
     "npm-run-all": "^4.0.1",
     "pngjs": "^3.0.0",
     "prettier": "^1.14.3",
     "rollup": "^0.60.7",
     "rollup-plugin-buble": "^0.19.0",
+    "rollup-plugin-commonjs": "^9.2.1",
+    "rollup-plugin-glslify": "^1.1.0",
+    "rollup-plugin-node-resolve": "^4.0.1",
     "rollup-plugin-string": "^2.0.2",
     "rollup-watch": "^3.2.2",
     "st": "^1.2.0"
@@ -51,5 +60,11 @@
     "rules": {
       "prettier/prettier": "error"
     }
+  },
+  "dependencies": {
+    "@mapbox/mapbox-gl-style-spec": "^13.6.0"
+  },
+  "peerDependencies": {
+    "mapbox-gl": "^0.53.1"
   }
 }
