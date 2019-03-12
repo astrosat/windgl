@@ -137,6 +137,8 @@ if __name__ == "__main__":
 
     for product in ("1p00", "0p50", "0p25"):
         filename = f"{args.output_dir}{args.timestamp}_{product}.grb"
+        
+        # TODO: can probably streamline these steps without saving intermediary files
         download_data(filename, product, args.timestamp)
         bands = import_data(filename)
 
