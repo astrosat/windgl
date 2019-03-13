@@ -46,7 +46,7 @@ void main() {
 
 
     float inside = 1.0-smoothstep(.4,.405,d);
-    float halo = (1.0-smoothstep(.43,.435,d));
+    float halo = (1.0-smoothstep(.43,.435,d)) - inside;
     vec2 ramp_pos = vec2(
         fract(16.0 * v_speed),
         floor(16.0 * v_speed) / 16.0);
