@@ -14,10 +14,11 @@ usage: gfswind2png.py [-h] --timestamp TIMESTAMP [--output_dir OUTPUT_DIR]
 optional arguments:
   -h, --help            show this help message and exit
   --timestamp TIMESTAMP
-                        Enter timestamp in YYYTMMDDhh format. hh must be 00,
+                        Enter timestamp in YYYYMMDDhh format. hh must be 00,
                         06, 12, 18
   --output_dir OUTPUT_DIR
-                        Enter path to directory to save output if now CWD.
+                        Enter path to directory to save output. Defaults to
+                        the current working directory.
   --clean               Cleans local folders
 """
 
@@ -128,14 +129,17 @@ if __name__ == "__main__":
         "--timestamp",
         type=str,
         required=True,
-        help="Enter timestamp in YYYTMMDDhh format. hh must be 00, 06, 12, 18",
+        help="Enter timestamp in YYYYMMDDhh format. hh must be 00, 06, 12, 18",
     )
 
     parser.add_argument(
         "--output_dir",
         type=str,
         default=pathlib.Path(__file__).resolve().parent,
-        help="Enter path to directory to save output if now CWD.",
+        help=(
+            "Enter path to directory to save output. "
+            "Defaults to the current working directory."
+        )
     )
 
     parser.add_argument(
