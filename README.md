@@ -11,7 +11,7 @@ npm install --save @astrosat/windgl
 
 ```javascript
 import {Map} from 'mapboxgl';
-import {sampleFill, particles, source} from '@astrosat/windgl';
+import {sampleFill, particles, source, arrows} from '@astrosat/windgl';
 
 // 1. Create a source
 const windSource = source('http://url/to/backend');
@@ -67,7 +67,7 @@ A `color` value. You can interpolate based on zoom or using data-driven styling 
 
 A `number` between `0` and `1`. Indicates the global opacity of the layer. You can use zoom for styling.
 
-#### Particles
+### Particles
 
 ![Particles](./random/particles.png)
 
@@ -82,6 +82,24 @@ A `color` value. You can interpolate based on zoom or using data-driven styling 
 A positive `number`. Indicates how quickly the particles move (i.e. is a multiplier for the speed vector from the dataset). Can be interpolated based on zoom levels. Default is `0.75`.
 
 You can adjust the properties by calling `setProperty(property, value)`.
+
+### Arrows
+
+![Arrows](./random/arrows.png)
+
+A vector field layer. You can customize it with the following properties:
+
+#### `arrow-min-size`
+
+A positive `number`. In general, this layer will attempt to draw an arrow at every grid point of the underlying data. However, sometimes that would result in really tiny arrows. So if the size of the arrow would be less than this limit, we will switch to interpolation and show a larger arrow aggregating multiple values. Default is 40px.
+
+#### `arrow-color`
+
+A `color` value. You can interpolate based on zoom or using data-driven styling (`["get", "speed"]` will get the speed at the current grid point). The default value is `white`.
+
+#### `arrow-halo-color`
+
+A `color` value. You can interpolate based on zoom. The color of an outline drawn around the arrow. Defaults to transparent.
 
 ## Limitations
 

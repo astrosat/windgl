@@ -98,13 +98,13 @@ export default class Layer {
   onAdd(map, gl) {
     this.gl = gl;
     this.map = map;
-    this.initialize(map, gl);
     if (this.windData) {
       this._initialize();
     }
   }
 
   _initialize() {
+    this.initialize(this.map, this.gl);
     this.windTexture = this.windData.getTexture(this.gl);
     map.on("resize", this.resize.bind(this));
     Object.entries(this._propsOnInit).forEach(([k, v]) => {
