@@ -1,3 +1,27 @@
+"""
+gfswind2png creates a TMS like pyramid of GFS wind data where the red and green
+bands represent the u and v vector components.
+Level 0 = 1 degree spatial resolution
+Level 1 = 0.5 degree spatial resolution
+Level 2 = 0.25 degree spatial resolution
+
+setup: create python virtualenv with dependencies using Pipenv and the Pipfile
+in this directory
+
+usage: gfswind2png.py [-h] --timestamp TIMESTAMP [--output_dir OUTPUT_DIR]
+                      [--clean]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --timestamp TIMESTAMP
+                        Enter timestamp in YYYTMMDDhh format. hh must be 00,
+                        06, 12, 18
+  --output_dir OUTPUT_DIR
+                        Enter path to directory to save output if now CWD.
+  --clean               Cleans local folders
+"""
+
+
 import os
 import pathlib
 import json
