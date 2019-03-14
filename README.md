@@ -1,9 +1,7 @@
 # WindGL
 
-A WebGL-powered visualization of wind power as a custom Mapbox Layer.
+A WebGL-powered visualization of wind power using custom Mapbox Layers.
 Capable of rendering up to 1 million wind particles at 60fps.
-
-This is based on code from mapbox/webgl-wind, but modified to be used as a custom layer.
 
 ## Usage
 
@@ -13,42 +11,111 @@ npm install --save @astrosat/windgl
 
 ```javascript
 import {Map} from 'mapboxgl';
-import windGL from 'windgl';
+import {sampleFill, particles, source, arrows} from '@astrosat/windgl';
+
+// 1. Create a source
+const windSource = source('http://url/to/backend');
 
 const map = new Map(...);
 
-map.addLayer(windGL({
-    id: 'wind',
-    source: {
-        url: 'url/to/backend'
-    },
-    properties: {
-        'particle-count': 65536, // the number of particles (should be a number with a int square root)
-        'wind-speed-color-ramp': [ // a gradient used for coloring particles
-            0.0, '#3288bd',
-            0.1, '#66c2a5',
-            0.2, '#abdda4',
-            0.3, '#e6f598',
-            0.4, '#fee08b',
-            0.5, '#fdae61',
-            0.6, '#f46d43',
-            1.0, '#d53e4f' ],
-        'particle-fade-opacity': 0.996, // how fast the particle trails fade on each frame
-        'particle-speed-factor': 0.25, // how fast the particles move
-        'particle-reset-rate': 0.003, // how often the particles move to a random place
-        'particle-reset-factor': 0.01 // drop rate increase relative to individual particle speed
-    }
+map.addLayer(sampleFill({
+  id: 'windbackground', // required
+  source: windSource, // required
+  'sample-fill-opacity': 0.8 // optional
 }));
+
+map.addLayer(particles({
+  id: 'particles',
+  source: windSource, // best to share the same source between all layers
+  'particle-speed': ['interpolate', ['zoom'], 0, 0.5, 10, 0.8]
+  // you can use mapbox style expressions
+}));
+
+map.addLayer(arrows({
+    id: 'arrows',
+    source: windSource
+}), "waterway-label"); // inserting the layer in the middle of the layer stack is supported
 ```
+
+## Layers
+
+This package offers several ways to visualize wind speed.
+
+### Sample Fill
+
+![Sample Fill](./demo/random/sampleFill.png)
+
+This layer will use a color map to show the wind speed at each pixel (interpolated from the data set). You can customize it with the following properties:
+
+#### `sample-fill-color`
+
+A `color` value. You can interpolate based on zoom or using data-driven styling (`["get", "speed"]` will get the speed at the current pixel). The default value is a nice color scale:
+
+```json
+[
+  "interpolate",
+  ["linear"],
+  ["get", "speed"],
+  0.0,
+  "#3288bd",
+  10,
+  "#66c2a5",
+  20,
+  "#abdda4",
+  30,
+  "#e6f598",
+  40,
+  "#fee08b",
+  50,
+  "#fdae61",
+  60,
+  "#f46d43",
+  100.0,
+  "#d53e4f"
+]
+```
+
+#### `sample-opacity`
+
+A `number` between `0` and `1`. Indicates the global opacity of the layer. You can use zoom for styling.
+
+### Particles
+
+![Particles](./demo/random/particles.png)
+
+A particle layer showing wind speed by animating particles based on the wind speed. You can customize it with the following properties:
+
+#### `particle-color`
+
+A `color` value. You can interpolate based on zoom or using data-driven styling (`["get", "speed"]` will get the speed at the current particle). The default value is `white`.
+
+#### `particle-speed`
+
+A positive `number`. Indicates how quickly the particles move (i.e. is a multiplier for the speed vector from the dataset). Can be interpolated based on zoom levels. Default is `0.75`.
 
 You can adjust the properties by calling `setProperty(property, value)`.
 
+### Arrows
+
+![Arrows](./demo/random/arrows.png)
+
+A vector field layer. You can customize it with the following properties:
+
+#### `arrow-min-size`
+
+A positive `number`. In general, this layer will attempt to draw an arrow at every grid point of the underlying data. However, sometimes that would result in really tiny arrows. So if the size of the arrow would be less than this limit, we will switch to interpolation and show a larger arrow aggregating multiple values. Default is 40px.
+
+#### `arrow-color`
+
+A `color` value. You can interpolate based on zoom or using data-driven styling (`["get", "speed"]` will get the speed at the current grid point). The default value is `white`.
+
+#### `arrow-halo-color`
+
+A `color` value. You can interpolate based on zoom. The color of an outline drawn around the arrow. Defaults to transparent.
+
 ## Limitations
 
-1. The wind layer must be on top of other layers. Putting it in the middle of the layer stack doesn't work.
-2. The wind map doesn't wrap when zoomed out too much. For best results limit the minzoom of the map to something greater than 2.
 3. Datasource tiling isn't implemented.
-4. Ideally, the properties would be split between layout and paint and behave like proper Mapbox properties. However, the Mapbox code to do that is pretty involved.
 
 ## Backend
 

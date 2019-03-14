@@ -96,3 +96,7 @@ export function bindFramebuffer(gl, framebuffer, texture) {
     );
   }
 }
+
+export function matrixInverse(matrix) {
+  return new DOMMatrixReadOnly(matrix).inverse().toFloat32Array();
+}
