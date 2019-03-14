@@ -31,10 +31,6 @@ export default class Layer {
     if (!spec) return;
     const expr = expression.createPropertyExpression(value, spec);
     if (expr.result === "success") {
-      const name = prop
-        .split("-")
-        .map(a => a[0].toUpperCase() + a.slice(1))
-        .join("");
       switch (expr.value.kind) {
         case "camera":
         case "composite":

@@ -13950,7 +13950,7 @@ var styleSpec = createCommonjsModule(function (module, exports) {
   Object.defineProperty(exports, '__esModule', { value: true });
 
 }));
-
+//# sourceMappingURL=index.js.map
 });
 
 unwrapExports(styleSpec);
@@ -13993,10 +13993,6 @@ Layer.prototype.setProperty = function setProperty (prop, value) {
   if (!spec) { return; }
   var expr = styleSpec_1.createPropertyExpression(value, spec);
   if (expr.result === "success") {
-    var name = prop
-      .split("-")
-      .map(function (a) { return a[0].toUpperCase() + a.slice(1); })
-      .join("");
     switch (expr.value.kind) {
       case "camera":
       case "composite":

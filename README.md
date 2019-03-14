@@ -81,7 +81,7 @@ A `number` between `0` and `1`. Indicates the global opacity of the layer. You c
 
 ### Particles
 
-![Particles](./random/particles.png)
+![Particles](./demo/random/particles.png)
 
 A particle layer showing wind speed by animating particles based on the wind speed. You can customize it with the following properties:
 
@@ -97,7 +97,7 @@ You can adjust the properties by calling `setProperty(property, value)`.
 
 ### Arrows
 
-![Arrows](./random/arrows.png)
+![Arrows](./demo/random/arrows.png)
 
 A vector field layer. You can customize it with the following properties:
 
