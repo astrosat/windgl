@@ -36,7 +36,7 @@ export default url => {
       if (cache[coords]) {
         let req;
         while ((req = tileRequests[coords].pop())) {
-          dispatchReq(coords, req);
+          dispatchCallback(coords, req);
         }
       } else {
         load(...coords.split("/"));
@@ -45,9 +45,9 @@ export default url => {
     requestsBeforeMetadataLoaded = [];
   });
 
-  function dispatchReq(coords, req) {
+  function dispatchCallback(coords, cb) {
     const { tiles, ...windData } = data;
-    req(Object.assign({}, windData, { getTexture: cache[coords] }));
+    cb(Object.assign({}, windData, { getTexture: cache[coords] }));
   }
 
   function load(z, x, y) {
@@ -70,7 +70,7 @@ export default url => {
       };
       let req;
       while ((req = tileRequests[coords].pop())) {
-        dispatchReq(coords, req);
+        dispatchCallback(coords, req);
       }
     };
   }
@@ -79,7 +79,7 @@ export default url => {
     loadTile(z, x, y, cb) {
       const coords = [z, x, y].join("/");
       if (cache[coords]) {
-        dispatchReq(coords, cb);
+        dispatchCallback(coords, cb);
       } else {
         if (data) {
           if (tileRequests[coords]) {

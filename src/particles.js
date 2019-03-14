@@ -6,6 +6,19 @@ import particleUpdateFrag from "./shaders/particle-update.frag.glsl";
 import particleDrawVert from "./shaders/particle-draw.vert.glsl";
 import particleDrawFrag from "./shaders/particle-draw.frag.glsl";
 
+/**
+ * This layer simulates a particles system where the particles move according
+ * to the forces of the wind. This is achieved in a two step rendering process:
+ *
+ * 1. First the particle positions are updated. These are stored in a texure
+ *    where the BR channels encode x and AG encode the y position. The `update`
+ *    function invokes a shader that updates the positions and renders them back
+ *    into a texure. This whole simulation happens in global WSG84 coordinates.
+ *
+ * 2. In the `draw` phase, actual points are drawn on screen. Their positions
+ *    are read from the texture and are projected into pseudo-mercator coordinates
+ *    and their final position is computed based on the map viewport.
+ */
 class Particles extends Layer {
   constructor(options) {
     this.propertySpec = {
@@ -94,6 +107,7 @@ class Particles extends Layer {
     this.initializeParticles(gl, this._numParticles);
   }
 
+  // This is a callback from mapbox for rendering into a texture
   prerender(gl, matrix) {
     if (this.windData) this.update(gl, matrix);
   }

@@ -70,20 +70,8 @@ class SampleFill extends Layer {
     this.buildColorRamp(expr);
   }
 
-  setColorRamp(gl, colors) {
-    // lookup texture for colorizing the particles according to their speed
-    this.colorRampTexture = util.createTexture(
-      this.gl,
-      this.gl.LINEAR,
-      getColorRamp(colors),
-      16,
-      16
-    );
-  }
-
   draw(gl, matrix, dateLineOffset) {
     const opacity = this.sampleOpacity;
-    const program = this.backgroundProgram;
     gl.useProgram(program.program);
 
     util.bindAttribute(gl, this.quadBuffer, program.a_pos, 2);

@@ -19,10 +19,22 @@ const windSource = source('http://url/to/backend');
 const map = new Map(...);
 
 map.addLayer(sampleFill({
-    id: 'windbackground', // required
-    source: windSource, // required
-    'sample-fill-opacity': 0.8 // optional
+  id: 'windbackground', // required
+  source: windSource, // required
+  'sample-fill-opacity': 0.8 // optional
 }));
+
+map.addLayer(particles({
+  id: 'particles',
+  source: windSource, // best to share the same source between all layers
+  'particle-speed': ['interpolate', ['zoom'], 0, 0.5, 10, 0.8]
+  // you can use mapbox style expressions
+}));
+
+map.addLayer(arrows({
+    id: 'arrows',
+    source: windSource
+}), "waterway-label"); // inserting the layer in the middle of the layer stack is supported
 ```
 
 ## Layers

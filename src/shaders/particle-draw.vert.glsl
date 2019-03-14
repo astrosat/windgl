@@ -23,8 +23,6 @@ void main() {
         color.r / 255.0 + color.b,
         color.g / 255.0 + color.a));
 
-
-
     gl_PointSize = 2.0;
     gl_Position = u_matrix * vec4(v_particle_pos.xy + vec2(u_dateline_offset, 0), 0, 1);
 }

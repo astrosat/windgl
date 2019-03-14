@@ -13952,7 +13952,7 @@
     Object.defineProperty(exports, '__esModule', { value: true });
 
   }));
-
+  //# sourceMappingURL=index.js.map
   });
 
   unwrapExports(styleSpec);
@@ -14245,6 +14245,19 @@
 
   var particleDrawFrag = "precision mediump float;\n#define GLSLIFY 1\n\nuniform sampler2D u_wind;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform sampler2D u_color_ramp;\n\nvarying vec2 v_particle_pos;\n\nvoid main() {\n    vec2 velocity = mix(u_wind_min, u_wind_max, texture2D(u_wind, v_particle_pos).rg);\n    float speed_t = length(velocity) / length(u_wind_max);\n    //\n    // // color ramp is encoded in a 16x16 texture\n    vec2 ramp_pos = vec2(\n        fract(16.0 * speed_t),\n        floor(16.0 * speed_t) / 16.0);\n\n    gl_FragColor = texture2D(u_color_ramp, ramp_pos);\n    // gl_FragColor = vec4(1);\n}\n"; // eslint-disable-line
 
+  /**
+   * This layer simulates a particles system where the particles move according
+   * to the forces of the wind. This is achieved in a two step rendering process:
+   *
+   * 1. First the particle positions are updated. These are stored in a texure
+   *    where the BR channels encode x and AG encode the y position. The `update`
+   *    function invokes a shader that updates the positions and renders them back
+   *    into a texure. This whole simulation happens in global WSG84 coordinates.
+   *
+   * 2. In the `draw` phase, actual points are drawn on screen. Their positions
+   *    are read from the texture and are projected into pseudo-mercator coordinates
+   *    and their final position is computed based on the map viewport.
+   */
   var Particles = /*@__PURE__*/(function (Layer$$1) {
     function Particles(options) {
       this.propertySpec = {
@@ -14337,6 +14350,7 @@
       this.initializeParticles(gl, this._numParticles);
     };
 
+    // This is a callback from mapbox for rendering into a texture
     Particles.prototype.prerender = function prerender (gl, matrix) {
       if (this.windData) { this.update(gl, matrix); }
     };
@@ -14470,7 +14484,6 @@
       var numVertices = numTriangles * 3;
       var positions = new Float32Array(2 * numVertices);
       var corners = new Float32Array(2 * numVertices);
-      console.log(this.cols, this.rows);
       for (var i = 0; i < this.cols; i++) {
         for (var j = 0; j < this.rows; j++) {
           var index = (i * this.rows + j) * 12;
@@ -14480,18 +14493,30 @@
       }
       this.positionsBuffer = createBuffer(this.gl, positions);
       this.cornerBuffer = createBuffer(this.gl, corners);
-      console.log(positions, corners);
     };
 
-    Arrows.prototype.computeDimensions = function computeDimensions (gl, map) {
-      if (
-        map.getBounds().getEast() - 180 - (map.getBounds().getWest() + 180) >
-        0
-      ) {
-        return [gl.canvas.height, gl.canvas.height];
-      } else {
-        return [gl.canvas.width, gl.canvas.height];
-      }
+    /**
+     * This figures out the ideal number or rows and columns to show.
+     *
+     * NB: Returns [cols, rows] as that is [x,y] which makes more sense.
+     */
+    Arrows.prototype.computeDimensions = function computeDimensions (gl, map, minSize, cols, rows) {
+      // If we are rendering multiple copies of the world, then we only care
+      // about the square in the middle, as other code will take care of the
+      // aditional coppies.
+      var ref =
+        map.getBounds().getEast() - 180 - (map.getBounds().getWest() + 180) > 0
+          ? [gl.canvas.height, gl.canvas.height]
+          : [gl.canvas.width, gl.canvas.height];
+      var w = ref[0];
+      var h = ref[1];
+
+      var z = map.getZoom();
+
+      return [
+        Math.min(Math.floor((Math.floor(z + 1) * w) / minSize), cols),
+        Math.min(Math.floor((Math.floor(z + 1) * h) / minSize), rows)
+      ];
     };
 
     Arrows.prototype.draw = function draw (gl, matrix, dateLineOffset) {
@@ -14506,21 +14531,15 @@
 
       gl.uniform1i(program.u_wind, 0);
       gl.uniform1i(program.u_color_ramp, 2);
-
-      // compute downsampling
-      var ref = this.computeDimensions(gl, this.map);
-      var w = ref[0];
-      var h = ref[1];
-      var z = this.map.getZoom();
-      var cols = Math.min(
-        Math.floor((Math.floor(z + 1) * w) / this.arrowMinSize),
-        this.cols
-      );
-      var rows = Math.min(
-        Math.floor((Math.floor(z + 1) * h) / this.arrowMinSize),
+      var ref = this.computeDimensions(
+        gl,
+        this.map,
+        this.arrowMinSize,
+        this.cols,
         this.rows
       );
-
+      var cols = ref[0];
+      var rows = ref[1];
       gl.uniform2f(program.u_dimensions, cols, rows);
 
       gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height);

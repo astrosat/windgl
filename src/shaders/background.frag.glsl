@@ -18,9 +18,6 @@ uniform mat4 u_inverse_matrix;
 
 const float PI = 3.14159265359;
 
-
-
-
 /**
  * Wind speed lookup. Returns a vector that isn't re-normalized to real world units.
  * Uses manual bilinear filtering based on 4 adjacent pixels for smooth interpolation.
@@ -47,8 +44,6 @@ vec2 windSpeed(const vec2 uv) {
 float windSpeedMagnitude(const vec2 uv) {
     return length(windSpeed(uv)) / length(u_wind_max);
 }
-
-
 
 void main() {
     // modulus is used to make sure this wraps nicely when zoomed out

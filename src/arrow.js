@@ -54,7 +54,6 @@ class Arrows extends Layer {
     const numVertices = numTriangles * 3;
     const positions = new Float32Array(2 * numVertices);
     const corners = new Float32Array(2 * numVertices);
-    console.log(this.cols, this.rows);
     for (let i = 0; i < this.cols; i++) {
       for (let j = 0; j < this.rows; j++) {
         const index = (i * this.rows + j) * 12;
@@ -64,18 +63,30 @@ class Arrows extends Layer {
     }
     this.positionsBuffer = util.createBuffer(this.gl, positions);
     this.cornerBuffer = util.createBuffer(this.gl, corners);
-    console.log(positions, corners);
   }
 
-  computeDimensions(gl, map) {
-    if (
-      map.getBounds().getEast() - 180 - (map.getBounds().getWest() + 180) >
-      0
-    ) {
-      return [gl.canvas.height, gl.canvas.height];
-    } else {
-      return [gl.canvas.width, gl.canvas.height];
-    }
+  /**
+   * This figures out the ideal number or rows and columns to show.
+   *
+   * NB: Returns [cols, rows] as that is [x,y] which makes more sense.
+   */
+  computeDimensions(gl, map, minSize, cols, rows) {
+    // If we are rendering multiple copies of the world, then we only care
+    // about the square in the middle, as other code will take care of the
+    // aditional coppies.
+    const [w, h] =
+      map.getBounds().getEast() - 180 - (map.getBounds().getWest() + 180) > 0
+        ? [gl.canvas.height, gl.canvas.height]
+        : [gl.canvas.width, gl.canvas.height];
+
+    const z = map.getZoom();
+
+    // Either we show the grid size of the data, or we show fewer such
+    // that these should be about ~minSize.
+    return [
+      Math.min(Math.floor((Math.floor(z + 1) * w) / minSize), cols),
+      Math.min(Math.floor((Math.floor(z + 1) * h) / minSize), rows)
+    ];
   }
 
   draw(gl, matrix, dateLineOffset) {
@@ -90,19 +101,13 @@ class Arrows extends Layer {
 
     gl.uniform1i(program.u_wind, 0);
     gl.uniform1i(program.u_color_ramp, 2);
-
-    // compute downsampling
-    const [w, h] = this.computeDimensions(gl, this.map);
-    const z = this.map.getZoom();
-    const cols = Math.min(
-      Math.floor((Math.floor(z + 1) * w) / this.arrowMinSize),
-      this.cols
-    );
-    const rows = Math.min(
-      Math.floor((Math.floor(z + 1) * h) / this.arrowMinSize),
+    const [cols, rows] = this.computeDimensions(
+      gl,
+      this.map,
+      this.arrowMinSize,
+      this.cols,
       this.rows
     );
-
     gl.uniform2f(program.u_dimensions, cols, rows);
 
     gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height);

@@ -17,12 +17,12 @@ var map = new mapboxgl.Map({
   style: "mapbox://styles/mapbox/light-v9"
 }).on("load", function() {
   const source = windGL.source("wind/" + windFiles[6] + ".json");
-  const wind = windGL.background({
+  const wind = windGL.sampleFill({
     id: "windbg",
     source
   });
   map.addLayer(wind, "road-pedestrian-case");
-  const particles = windGL.particles({
+  const particles = windGL.arrow({
     id: "windparticles",
     source
   });

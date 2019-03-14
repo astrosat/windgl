@@ -1,24 +1,34 @@
 import * as util from "./util";
 import { expression } from "mapbox-gl/dist/style-spec";
 
+/**
+ * This is an abstract base class that handles most of the mapbox specific
+ * stuff as well as a lot of the bookkeeping.
+ */
 export default class Layer {
   constructor({ id, source, ...options }) {
     this.id = id;
     this.type = "custom";
     this.renderingMode = "2d";
     this.source = source;
+
     this._zoomUpdatable = {};
     this._propsOnInit = {};
 
     this.source.loadTile(0, 0, 0, this.setWind.bind(this));
 
+    // This will initialize the default values
     Object.keys(this.propertySpec).forEach(spec => {
       this.setProperty(spec, options[spec] || this.propertySpec[spec].default);
     });
   }
 
+  /**
+   * Update a property using a mapbox style epxression.
+   */
   setProperty(prop, value) {
     const spec = this.propertySpec[prop];
+    if (!spec) return;
     const expr = expression.createPropertyExpression(value, spec);
     if (expr.result === "success") {
       const name = prop
@@ -41,6 +51,10 @@ export default class Layer {
     }
   }
 
+  // Child classes can interact with style properties in 2 ways:
+  // Either as a camelCased instance variable or by declaring a
+  // a setter function which will recieve the *expression* and
+  // it is their responsibility to evaluate it.
   _setPropertyValue(prop, value) {
     const name = prop
       .split("-")
@@ -56,6 +70,13 @@ export default class Layer {
     }
   }
 
+  // Properties that use data drive styling (i.e. ["get", "speed"]),
+  // will want to use this method. Since all speed values are evalutated
+  // on the GPU side, but expressions are evaluated on the CPU side,
+  // we need to evaluate the expression eagerly. We do it here by sampling
+  // 256 possible speed values in the range of the dataset and storing
+  // those in a 16x16 texture. The shaders than can simply pick the appropriate
+  // pixel to determine the correct color.
   buildColorRamp(expr) {
     const colors = new Uint8Array(256 * 4);
     let range = 1;
@@ -95,6 +116,7 @@ export default class Layer {
     }
   }
 
+  // called by mapboxgl
   onAdd(map, gl) {
     this.gl = gl;
     this.map = map;
@@ -103,10 +125,13 @@ export default class Layer {
     }
   }
 
+  // This will be called when we have everything we need:
+  // the gl context and the data
+  // we will call child classes `initialize` as well as do a bunch of
+  // stuff to get the properties in order
   _initialize() {
     this.initialize(this.map, this.gl);
     this.windTexture = this.windData.getTexture(this.gl);
-    map.on("resize", this.resize.bind(this));
     Object.entries(this._propsOnInit).forEach(([k, v]) => {
       this._setPropertyValue(k, v);
     });
@@ -117,21 +142,21 @@ export default class Layer {
     map.on("zoom", this.zoom.bind(this));
   }
 
+  // Most properties allow zoom dependent styling. Here we update those.
   zoom() {
     Object.entries(this._zoomUpdatable).forEach(([k, v]) => {
       this._setPropertyValue(k, v);
     });
   }
 
-  resize() {}
-
+  // This is called when the map is destroyed or the gl context lost.
   onRemove(map) {
     delete this.gl;
     delete this.map;
-    map.off("resize", this.resize);
     map.off("zoom", this.zoom);
   }
 
+  // called by mapboxgl
   render(gl, matrix) {
     if (this.windData) {
       const bounds = this.map.getBounds();
