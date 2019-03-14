@@ -72,6 +72,7 @@ class SampleFill extends Layer {
 
   draw(gl, matrix, dateLineOffset) {
     const opacity = this.sampleOpacity;
+    const program = this.backgroundProgram;
     gl.useProgram(program.program);
 
     util.bindAttribute(gl, this.quadBuffer, program.a_pos, 2);

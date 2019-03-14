@@ -13946,7 +13946,7 @@ var styleSpec = createCommonjsModule(function (module, exports) {
   Object.defineProperty(exports, '__esModule', { value: true });
 
 }));
-//# sourceMappingURL=index.js.map
+
 });
 
 unwrapExports(styleSpec);
@@ -13954,6 +13954,10 @@ var styleSpec_1 = styleSpec.expression;
 
 function objectWithoutProperties (obj, exclude) { var target = {}; for (var k in obj) if (Object.prototype.hasOwnProperty.call(obj, k) && exclude.indexOf(k) === -1) target[k] = obj[k]; return target; }
 
+/**
+ * This is an abstract base class that handles most of the mapbox specific
+ * stuff as well as a lot of the bookkeeping.
+ */
 var Layer = function Layer(ref) {
   var this$1 = this;
   var id = ref.id;
@@ -13965,18 +13969,24 @@ var Layer = function Layer(ref) {
   this.type = "custom";
   this.renderingMode = "2d";
   this.source = source;
+
   this._zoomUpdatable = {};
   this._propsOnInit = {};
 
   this.source.loadTile(0, 0, 0, this.setWind.bind(this));
 
+  // This will initialize the default values
   Object.keys(this.propertySpec).forEach(function (spec) {
     this$1.setProperty(spec, options[spec] || this$1.propertySpec[spec].default);
   });
 };
 
+/**
+ * Update a property using a mapbox style epxression.
+ */
 Layer.prototype.setProperty = function setProperty (prop, value) {
   var spec = this.propertySpec[prop];
+  if (!spec) { return; }
   var expr = styleSpec_1.createPropertyExpression(value, spec);
   if (expr.result === "success") {
     var name = prop
@@ -13999,6 +14009,10 @@ Layer.prototype.setProperty = function setProperty (prop, value) {
   }
 };
 
+// Child classes can interact with style properties in 2 ways:
+// Either as a camelCased instance variable or by declaring a
+// a setter function which will recieve the *expression* and
+// it is their responsibility to evaluate it.
 Layer.prototype._setPropertyValue = function _setPropertyValue (prop, value) {
   var name = prop
     .split("-")
@@ -14014,6 +14028,13 @@ Layer.prototype._setPropertyValue = function _setPropertyValue (prop, value) {
   }
 };
 
+// Properties that use data drive styling (i.e. ["get", "speed"]),
+// will want to use this method. Since all speed values are evalutated
+// on the GPU side, but expressions are evaluated on the CPU side,
+// we need to evaluate the expression eagerly. We do it here by sampling
+// 256 possible speed values in the range of the dataset and storing
+// those in a 16x16 texture. The shaders than can simply pick the appropriate
+// pixel to determine the correct color.
 Layer.prototype.buildColorRamp = function buildColorRamp (expr) {
   var colors = new Uint8Array(256 * 4);
   var range = 1;
@@ -14053,6 +14074,7 @@ Layer.prototype.setWind = function setWind (windData) {
   }
 };
 
+// called by mapboxgl
 Layer.prototype.onAdd = function onAdd (map, gl) {
   this.gl = gl;
   this.map = map;
@@ -14061,12 +14083,15 @@ Layer.prototype.onAdd = function onAdd (map, gl) {
   }
 };
 
+// This will be called when we have everything we need:
+// the gl context and the data
+// we will call child classes `initialize` as well as do a bunch of
+// stuff to get the properties in order
 Layer.prototype._initialize = function _initialize () {
     var this$1 = this;
 
   this.initialize(this.map, this.gl);
   this.windTexture = this.windData.getTexture(this.gl);
-  map.on("resize", this.resize.bind(this));
   Object.entries(this._propsOnInit).forEach(function (ref) {
       var k = ref[0];
       var v = ref[1];
@@ -14083,6 +14108,7 @@ Layer.prototype._initialize = function _initialize () {
   map.on("zoom", this.zoom.bind(this));
 };
 
+// Most properties allow zoom dependent styling. Here we update those.
 Layer.prototype.zoom = function zoom () {
     var this$1 = this;
 
@@ -14094,15 +14120,14 @@ Layer.prototype.zoom = function zoom () {
   });
 };
 
-Layer.prototype.resize = function resize () {};
-
+// This is called when the map is destroyed or the gl context lost.
 Layer.prototype.onRemove = function onRemove (map) {
   delete this.gl;
   delete this.map;
-  map.off("resize", this.resize);
   map.off("zoom", this.zoom);
 };
 
+// called by mapboxgl
 Layer.prototype.render = function render (gl, matrix) {
   if (this.windData) {
     var bounds = this.map.getBounds();
@@ -14192,17 +14217,6 @@ var SampleFill = /*@__PURE__*/(function (Layer$$1) {
     this.buildColorRamp(expr);
   };
 
-  SampleFill.prototype.setColorRamp = function setColorRamp (gl, colors) {
-    // lookup texture for colorizing the particles according to their speed
-    this.colorRampTexture = createTexture(
-      this.gl,
-      this.gl.LINEAR,
-      getColorRamp(colors),
-      16,
-      16
-    );
-  };
-
   SampleFill.prototype.draw = function draw (gl, matrix, dateLineOffset) {
     var opacity = this.sampleOpacity;
     var program = this.backgroundProgram;
@@ -14233,11 +14247,11 @@ function sampleFill (options) { return new SampleFill(options); }
 
 var particleUpdateVert = "precision mediump float;\n#define GLSLIFY 1\n\nattribute vec2 a_pos;\n\nvarying vec2 v_tex_pos;\n\nvoid main() {\n    v_tex_pos = a_pos;\n    gl_Position = vec4(1.0 - 2.0 * a_pos, 0, 1);\n}\n"; // eslint-disable-line
 
-var particleUpdateFrag = "precision highp float;\n#define GLSLIFY 1\n\nuniform sampler2D u_particles;\nuniform sampler2D u_wind;\nuniform vec2 u_wind_res;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform float u_rand_seed;\nuniform float u_speed_factor;\nuniform float u_drop_rate;\nuniform float u_drop_rate_bump;\n\nvarying vec2 v_tex_pos;\n\n// pseudo-random generator\nconst vec3 rand_constants = vec3(12.9898, 78.233, 4375.85453);\nfloat rand(const vec2 co) {\n    float t = dot(rand_constants.xy, co);\n    return fract(sin(t) * (rand_constants.z + t));\n}\n\n// wind speed lookup; use manual bilinear filtering based on 4 adjacent pixels for smooth interpolation\nvec2 lookup_wind(const vec2 uv) {\n    // return texture2D(u_wind, uv).rg; // lower-res hardware filtering\n    vec2 px = 1.0 / u_wind_res;\n    vec2 vc = (floor(uv * u_wind_res)) * px;\n    vec2 f = fract(uv * u_wind_res);\n    vec2 tl = texture2D(u_wind, vc).rg;\n    vec2 tr = texture2D(u_wind, vc + vec2(px.x, 0)).rg;\n    vec2 bl = texture2D(u_wind, vc + vec2(0, px.y)).rg;\n    vec2 br = texture2D(u_wind, vc + px).rg;\n    return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);\n}\n\nvoid main() {\n    vec4 color = texture2D(u_particles, v_tex_pos);\n    vec2 pos = vec2(\n        color.r / 255.0 + color.b,\n        color.g / 255.0 + color.a); // decode particle position from pixel RGBA\n\n    vec2 velocity = mix(u_wind_min, u_wind_max, lookup_wind(pos));\n    float speed_t = length(velocity) / length(u_wind_max);\n\n    // take EPSG:4236 distortion into account for calculating where the particle moved\n    // float distortion = cos(radians(pos.y * 180.0 - 90.0));\n    vec2 offset = vec2(velocity.x , -velocity.y) * 0.0001 * u_speed_factor;\n\n    // update particle position, wrapping around the date line\n    pos = fract(1.0 + pos + offset);\n\n    // a random seed to use for the particle drop\n    vec2 seed = (pos + v_tex_pos) * u_rand_seed;\n\n    // drop rate is a chance a particle will restart at random position, to avoid degeneration\n    float drop_rate = u_drop_rate + speed_t * u_drop_rate_bump;\n    float drop = step(1.0 - drop_rate, rand(seed));\n\n    vec2 random_pos = vec2(\n        rand(seed + 1.3),\n        rand(seed + 2.1));\n     pos = mix(pos, random_pos, drop);\n\n    // encode the new particle position back into RGBA\n    gl_FragColor = vec4(\n        fract(pos * 255.0),\n        floor(pos * 255.0) / 255.0);\n}\n"; // eslint-disable-line
+var particleUpdateFrag = "precision highp float;\n#define GLSLIFY 1\n\nuniform sampler2D u_particles;\nuniform sampler2D u_wind;\nuniform vec2 u_wind_res;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform float u_rand_seed;\nuniform float u_speed_factor;\nuniform float u_drop_rate;\nuniform float u_drop_rate_bump;\n\nvarying vec2 v_tex_pos;\n\n// pseudo-random generator\nconst vec3 rand_constants = vec3(12.9898, 78.233, 4375.85453);\nfloat rand(const vec2 co) {\n    float t = dot(rand_constants.xy, co);\n    return fract(sin(t) * (rand_constants.z + t));\n}\n\n// wind speed lookup; use manual bilinear filtering based on 4 adjacent pixels for smooth interpolation\nvec2 lookup_wind(const vec2 uv) {\n    // return texture2D(u_wind, uv).rg; // lower-res hardware filtering\n    vec2 px = 1.0 / u_wind_res;\n    vec2 vc = (floor(uv * u_wind_res)) * px;\n    vec2 f = fract(uv * u_wind_res);\n    vec2 tl = texture2D(u_wind, vc).rg;\n    vec2 tr = texture2D(u_wind, vc + vec2(px.x, 0)).rg;\n    vec2 bl = texture2D(u_wind, vc + vec2(0, px.y)).rg;\n    vec2 br = texture2D(u_wind, vc + px).rg;\n    return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);\n}\n\nvoid main() {\n    vec4 color = texture2D(u_particles, v_tex_pos);\n    vec2 pos = vec2(\n        color.r / 255.0 + color.b,\n        color.g / 255.0 + color.a); // decode particle position from pixel RGBA\n\n    vec2 velocity = mix(u_wind_min, u_wind_max, lookup_wind(pos));\n    float speed_t = length(velocity) / length(u_wind_max);\n\n    vec2 offset = vec2(velocity.x , -velocity.y) * 0.0001 * u_speed_factor;\n\n    // update particle position, wrapping around the date line\n    pos = fract(1.0 + pos + offset);\n\n    // a random seed to use for the particle drop\n    vec2 seed = (pos + v_tex_pos) * u_rand_seed;\n\n    // drop rate is a chance a particle will restart at random position, to avoid degeneration\n    float drop_rate = u_drop_rate + speed_t * u_drop_rate_bump;\n    float drop = step(1.0 - drop_rate, rand(seed));\n\n    vec2 random_pos = vec2(\n        rand(seed + 1.3),\n        rand(seed + 2.1));\n     pos = mix(pos, random_pos, drop);\n\n    // encode the new particle position back into RGBA\n    gl_FragColor = vec4(\n        fract(pos * 255.0),\n        floor(pos * 255.0) / 255.0);\n}\n"; // eslint-disable-line
 
 var particleDrawVert = "#define M_PI 3.1415926535897932384626433832795\n\nprecision mediump float;\n#define GLSLIFY 1\n\nconst float PI = 3.14159265359;\n\n/**\n * Converts texture like WGS84 coordinates (this is just like WGS84, but instead of angles, it uses\n * intervals of 0..1) into mapbox style pseudo-mercator coordinates (this is just like mercator, but the unit isn't a meter, but 0..1\n * spans the entire world).\n */\nvec2 wgs84ToMercator(vec2 xy) {\n    // convert to angle\n    float y = -180.0 * xy.y + 90.0;\n    // use the formule to convert\n    y = (180.0 - (180.0 / PI * log(tan(PI / 4.0 + y * PI / 360.0)))) / 360.0;\n    // pass x through, as it doesn't change\n    return vec2(xy.x, y);\n}\n\nattribute float a_index;\n\nuniform sampler2D u_particles;\nuniform float u_particles_res;\nuniform mat4 u_matrix;\nuniform float u_dateline_offset;\n\nvarying vec2 v_particle_pos;\n\nvoid main() {\n    vec4 color = texture2D(u_particles, vec2(\n        fract(a_index / u_particles_res),\n        floor(a_index / u_particles_res) / u_particles_res));\n\n    // decode current particle position from the pixel's RGBA value\n    v_particle_pos = wgs84ToMercator(vec2(\n        color.r / 255.0 + color.b,\n        color.g / 255.0 + color.a));\n\n    gl_PointSize = 2.0;\n    gl_Position = u_matrix * vec4(v_particle_pos.xy + vec2(u_dateline_offset, 0), 0, 1);\n}\n"; // eslint-disable-line
 
-var particleDrawFrag = "precision mediump float;\n#define GLSLIFY 1\n\nuniform sampler2D u_wind;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform sampler2D u_color_ramp;\n\nvarying vec2 v_particle_pos;\n\nvoid main() {\n    vec2 velocity = mix(u_wind_min, u_wind_max, texture2D(u_wind, v_particle_pos).rg);\n    float speed_t = length(velocity) / length(u_wind_max);\n    //\n    // // color ramp is encoded in a 16x16 texture\n    vec2 ramp_pos = vec2(\n        fract(16.0 * speed_t),\n        floor(16.0 * speed_t) / 16.0);\n\n    gl_FragColor = texture2D(u_color_ramp, ramp_pos);\n    // gl_FragColor = vec4(1);\n}\n"; // eslint-disable-line
+var particleDrawFrag = "precision mediump float;\n#define GLSLIFY 1\n\nuniform sampler2D u_wind;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform sampler2D u_color_ramp;\n\nvarying vec2 v_particle_pos;\n\nvoid main() {\n    vec2 velocity = mix(u_wind_min, u_wind_max, texture2D(u_wind, v_particle_pos).rg);\n    float speed_t = length(velocity) / length(u_wind_max);\n\n    // // color ramp is encoded in a 16x16 texture\n    vec2 ramp_pos = vec2(\n        fract(16.0 * speed_t),\n        floor(16.0 * speed_t) / 16.0);\n\n    gl_FragColor = texture2D(u_color_ramp, ramp_pos);\n}\n"; // eslint-disable-line
 
 /**
  * This layer simulates a particles system where the particles move according
@@ -14421,7 +14435,7 @@ function particles (options) { return new Particles(options); }
 
 var arrowsVert = "precision mediump float;\n#define GLSLIFY 1\n\nattribute vec2 a_pos;\nattribute vec2 a_corner;\nvarying vec2 v_center;\nvarying float v_size;\nvarying float v_speed;\n\nuniform mat4 u_matrix;\nuniform vec2 u_dimensions;\n\nuniform sampler2D u_wind;\nuniform vec2 u_wind_res;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform float u_dateline_offset;\n\nconst float PI = 3.14159265359;\n\n/**\n * Converts mapbox style pseudo-mercator coordinates (this is just like mercator, but the unit isn't a meter, but 0..1\n * spans the entire world) into texture like WGS84 coordinates (this is just like WGS84, but instead of angles, it uses\n * intervals of 0..1).\n */\nvec2 mercatorToWGS84(vec2 xy) {\n    // convert lat into an angle\n    float y = radians(180.0 - xy.y * 360.0);\n    // use the formula to convert mercator -> WGS84\n    y = 360.0 / PI  * atan(exp(y)) - 90.0;\n    // normalize back into 0..1 interval\n    y = y / -180.0 + 0.5;\n    // pass lng through, as it doesn't change\n    return vec2(xy.x, y);\n}\n\n/**\n * Wind speed lookup. Returns a vector that isn't re-normalized to real world units.\n * Uses manual bilinear filtering based on 4 adjacent pixels for smooth interpolation.\n */\nvec2 windSpeedRelative(const vec2 uv) {\n    return texture2D(u_wind, uv).rg; // lower-res hardware filtering\n}\n\nvec2 windSpeed(const vec2 uv) {\n    return mix(u_wind_min, u_wind_max, windSpeedRelative(uv));\n}\n\nmat2 rotation(float angle) {\n    return mat2(cos(angle), -sin(angle),\n                sin(angle), cos(angle));\n}\n\nvoid main() {\n    float ratio = u_dimensions.x/u_dimensions.y;\n    vec2 unit = 0.45 / u_dimensions;\n    vec2 pos = a_pos / u_dimensions;\n\n    vec2 speed = windSpeed(pos);\n    v_speed = length(speed) / length(u_wind_max);\n    float angle = atan(speed.x, speed.y);\n    v_center = a_corner;\n    v_size = length(speed) / length(u_wind_max);\n\n    pos += rotation(angle) *  a_corner * unit;\n    // Fix proportions from rectangular projection to square\n    pos.x *= u_dimensions.x / u_dimensions.y;\n\n    gl_Position =  u_matrix * vec4(pos + vec2(u_dateline_offset, 0), 0, 1);\n    // TODO: This is a HAX because I have no idea why we're seeing double data. This makes it go away at the cost of perf and some ocasional rendering artefacts.\n    if ((pos.x >= 1. || pos.x <= 0.) && u_dateline_offset < 0.0) {\n        gl_Position.y = 10000.0;\n    }\n}\n"; // eslint-disable-line
 
-var arrowsFrag = "precision mediump float;\n#define GLSLIFY 1\n\n#define PI 3.14159265359\n#define TWO_PI 6.28318530718\n\nvarying vec2 v_center;\nvarying float v_size;\nvarying float v_speed;\n\nuniform sampler2D u_color_ramp;\nuniform vec4 u_halo_color;\n\nfloat polygon(vec3 st, int N) {\n    float a = atan(st.x,st.y)+PI;\n  \tfloat r = TWO_PI/float(N);\n\n    float d = cos(floor(.5+a/r)*r-a)*length(st.xy);\n    return d;\n}\n\nmat3 scale(vec2 _scale){\n    return mat3(1./_scale.x,0.0, 0,\n                0.0,1./_scale.y, 0,\n                0, 0, 1);\n}\n\nmat3 translate(vec2 _translate) {\n    return mat3(1, 0, _translate.x,\n               0, 1, _translate.y,\n               0, 0, 1);\n}\n\nfloat arrow(vec3 st, float len) {\n    return min(\n        polygon(st* scale(vec2(0.3)) , 3)\n        , polygon(st* translate(vec2(-0.00,len / 2.))  * scale(vec2(0.2,  len)), 4)\n    );\n}\n\nvoid main() {\n    // vec4 color = vec4(v_center, 0, 1);\n    vec3 st = vec3(v_center, 1);\n    float size = mix(.25, 4.0, v_size);\n    float d = arrow(st * translate(vec2(0, -size/2.0)), size);\n\n    float inside = 1.0-smoothstep(.4,.405,d);\n    float halo = (1.0-smoothstep(.43,.435,d)) - inside;\n    vec2 ramp_pos = vec2(\n        fract(16.0 * v_speed),\n        floor(16.0 * v_speed) / 16.0);\n\n    vec4 color = texture2D(u_color_ramp, ramp_pos);\n    gl_FragColor = color * inside + halo * u_halo_color;\n}\n"; // eslint-disable-line
+var arrowsFrag = "precision mediump float;\n#define GLSLIFY 1\n\n#define PI 3.14159265359\n#define TWO_PI 6.28318530718\n\nvarying vec2 v_center;\nvarying float v_size;\nvarying float v_speed;\n\nuniform sampler2D u_color_ramp;\nuniform vec4 u_halo_color;\n\nfloat polygon(vec3 st, int N) {\n    float a = atan(st.x, st.y) + PI;\n  \tfloat r = TWO_PI / float(N);\n\n    float d = cos(floor(0.5 + a / r) * r - a) * length(st.xy);\n    return d;\n}\n\nmat3 scale(vec2 _scale){\n    return mat3(1.0 / _scale.x, 0, 0,\n                0, 1.0 / _scale.y, 0,\n                0, 0, 1);\n}\n\nmat3 translate(vec2 _translate) {\n    return mat3(1, 0, _translate.x,\n                0, 1, _translate.y,\n                0, 0, 1);\n}\n\nfloat arrow(vec3 st, float len) {\n    return min(\n        polygon(st* scale(vec2(0.3)), 3),\n        polygon(st* translate(vec2(-0.00, len / 2.0)) * scale(vec2(0.2, len)), 4)\n    );\n}\n\nvoid main() {\n    vec3 st = vec3(v_center, 1);\n    float size = mix(0.25, 4.0, v_size);\n    float d = arrow(st * translate(vec2(0, -size / 2.0)), size);\n\n    float inside = 1.0 - smoothstep(0.4, 0.405, d);\n    float halo = (1.0 - smoothstep(0.43, 0.435, d)) - inside;\n    vec2 ramp_pos = vec2(\n        fract(16.0 * v_speed),\n        floor(16.0 * v_speed) / 16.0);\n\n    vec4 color = texture2D(u_color_ramp, ramp_pos);\n    gl_FragColor = color * inside + halo * u_halo_color;\n}\n"; // eslint-disable-line
 
 var Arrows = /*@__PURE__*/(function (Layer$$1) {
   function Arrows(options) {
@@ -14507,6 +14521,8 @@ var Arrows = /*@__PURE__*/(function (Layer$$1) {
 
     var z = map.getZoom();
 
+    // Either we show the grid size of the data, or we show fewer such
+    // that these should be about ~minSize.
     return [
       Math.min(Math.floor((Math.floor(z + 1) * w) / minSize), cols),
       Math.min(Math.floor((Math.floor(z + 1) * h) / minSize), rows)
@@ -14597,7 +14613,7 @@ function source (url) {
       if (cache[coords]) {
         var req;
         while ((req = tileRequests[coords].pop())) {
-          dispatchReq(coords, req);
+          dispatchCallback(coords, req);
         }
       } else {
         load.apply(void 0, coords.split("/"));
@@ -14606,11 +14622,11 @@ function source (url) {
     requestsBeforeMetadataLoaded = [];
   });
 
-  function dispatchReq(coords, req) {
+  function dispatchCallback(coords, cb) {
     var tiles = data.tiles;
     var rest = objectWithoutProperties$1( data, ["tiles"] );
     var windData = rest;
-    req(Object.assign({}, windData, { getTexture: cache[coords] }));
+    cb(Object.assign({}, windData, { getTexture: cache[coords] }));
   }
 
   function load(z, x, y) {
@@ -14633,7 +14649,7 @@ function source (url) {
       };
       var req;
       while ((req = tileRequests[coords].pop())) {
-        dispatchReq(coords, req);
+        dispatchCallback(coords, req);
       }
     };
   }
@@ -14642,7 +14658,7 @@ function source (url) {
     loadTile: function loadTile(z, x, y, cb) {
       var coords = [z, x, y].join("/");
       if (cache[coords]) {
-        dispatchReq(coords, cb);
+        dispatchCallback(coords, cb);
       } else {
         if (data) {
           if (tileRequests[coords]) {
