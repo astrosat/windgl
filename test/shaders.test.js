@@ -26,8 +26,8 @@ const wgs84ToMercator = coords =>
 describe("wgs84ToMercator", () => {
   test("equator in the middle", () => {
     const result = wgs84ToMercator([0.5, 0.5]);
-    expect(result[0]).toBeCloseTo(0.5, 4);
-    expect(result[1]).toBeCloseTo(0.5, 4);
+    expect(result[0]).toBeCloseTo(0.5);
+    expect(result[1]).toBeCloseTo(0.5);
   });
 
   test("round trips", () => {
@@ -49,15 +49,15 @@ describe("wgs84ToMercator", () => {
     // mercator is messy around the poles...
     for (let i = 0.1; i <= 1; i += 0.1) {
       const result = mercatorToWGS84(wgs84ToMercator([i, i]));
-      expect(result[0]).toBeCloseTo(i, 4);
-      expect(result[1]).toBeCloseTo(i, 4);
+      expect(result[0]).toBeCloseTo(i);
+      expect(result[1]).toBeCloseTo(i);
     }
   });
 
   test("half way", () => {
     const result = wgs84ToMercator([0.25, 0.25]);
-    expect(result[0]).toBeCloseTo(0.25, 4);
-    expect(result[1]).toBeCloseTo(0.359725036915205, 4);
+    expect(result[0]).toBeCloseTo(0.25);
+    expect(result[1]).toBeCloseTo(0.359725036915205);
   });
 });
 
