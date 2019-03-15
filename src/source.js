@@ -47,8 +47,7 @@ export default relUrl => {
   });
 
   function dispatchCallback(coords, cb) {
-    const { tiles, ...windData } = data;
-    cb(Object.assign({}, windData, { getTexture: cache[coords] }));
+    cb(Object.assign({}, data, { getTexture: cache[coords] }));
   }
 
   function load(z, x, y) {

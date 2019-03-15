@@ -5,37 +5,39 @@ import arrowsFrag from "./shaders/arrows.frag.glsl";
 
 class Arrows extends Layer {
   constructor(options) {
-    this.propertySpec = {
-      "arrow-min-size": {
-        type: "number",
-        minimum: 1,
-        default: 40,
-        expression: {
-          interpolated: true,
-          parameters: ["zoom"]
+    super(
+      {
+        "arrow-min-size": {
+          type: "number",
+          minimum: 1,
+          default: 40,
+          expression: {
+            interpolated: true,
+            parameters: ["zoom"]
+          },
+          "property-type": "data-constant"
         },
-        "property-type": "data-constant"
+        "arrow-color": {
+          type: "color",
+          default: "white",
+          expression: {
+            interpolated: true,
+            parameters: ["zoom", "feature"]
+          },
+          "property-type": "data-driven"
+        },
+        "arrow-halo-color": {
+          type: "color",
+          default: "rgba(0,0,0,0)",
+          expression: {
+            interpolated: true,
+            parameters: ["zoom"]
+          },
+          "property-type": "data-constant"
+        }
       },
-      "arrow-color": {
-        type: "color",
-        default: "white",
-        expression: {
-          interpolated: true,
-          parameters: ["zoom", "feature"]
-        },
-        "property-type": "data-driven"
-      },
-      "arrow-halo-color": {
-        type: "color",
-        default: "rgba(0,0,0,0)",
-        expression: {
-          interpolated: true,
-          parameters: ["zoom"]
-        },
-        "property-type": "data-constant"
-      }
-    };
-    super(options);
+      options
+    );
   }
 
   initialize(map, gl) {
