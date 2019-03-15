@@ -186,7 +186,7 @@ function nextConfig() {
   }, 1000);
 }
 
-let index = 3;
+let index = 0;
 
 map2 = initializeConfig(mapContainer2, configs[index]);
 

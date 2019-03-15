@@ -14011,7 +14011,7 @@
 	 * This is an abstract base class that handles most of the mapbox specific
 	 * stuff as well as a lot of the bookkeeping.
 	 */
-	var Layer = function Layer(ref) {
+	var Layer = function Layer(propertySpec, ref) {
 	  var this$1 = this;
 	  var id = ref.id;
 	  var source = ref.source;
@@ -14022,6 +14022,7 @@
 	  this.type = "custom";
 	  this.renderingMode = "2d";
 	  this.source = source;
+	  this.propertySpec = propertySpec;
 
 	  this._zoomUpdatable = {};
 	  this._propsOnInit = {};
@@ -14198,51 +14199,53 @@
 
 	var SampleFill = /*@__PURE__*/(function (Layer$$1) {
 	  function SampleFill(options) {
-	    this.propertySpec = {
-	      "sample-fill-color": {
-	        type: "color",
-	        default: [
-	          "interpolate",
-	          ["linear"],
-	          ["get", "speed"],
-	          0.0,
-	          "#3288bd",
-	          10,
-	          "#66c2a5",
-	          20,
-	          "#abdda4",
-	          30,
-	          "#e6f598",
-	          40,
-	          "#fee08b",
-	          50,
-	          "#fdae61",
-	          60,
-	          "#f46d43",
-	          100.0,
-	          "#d53e4f"
-	        ],
-	        doc: "The color of each pixel of this layer",
-	        expression: {
-	          interpolated: true,
-	          parameters: ["zoom", "feature"]
+	    Layer$$1.call(
+	      this, {
+	        "sample-fill-color": {
+	          type: "color",
+	          default: [
+	            "interpolate",
+	            ["linear"],
+	            ["get", "speed"],
+	            0.0,
+	            "#3288bd",
+	            10,
+	            "#66c2a5",
+	            20,
+	            "#abdda4",
+	            30,
+	            "#e6f598",
+	            40,
+	            "#fee08b",
+	            50,
+	            "#fdae61",
+	            60,
+	            "#f46d43",
+	            100.0,
+	            "#d53e4f"
+	          ],
+	          doc: "The color of each pixel of this layer",
+	          expression: {
+	            interpolated: true,
+	            parameters: ["zoom", "feature"]
+	          },
+	          "property-type": "data-driven"
 	        },
-	        "property-type": "data-driven"
+	        "sample-opacity": {
+	          type: "number",
+	          default: 1,
+	          minimum: 0,
+	          maximum: 1,
+	          transition: true,
+	          expression: {
+	            interpolated: true,
+	            parameters: ["zoom"]
+	          },
+	          "property-type": "data-constant"
+	        }
 	      },
-	      "sample-opacity": {
-	        type: "number",
-	        default: 1,
-	        minimum: 0,
-	        maximum: 1,
-	        transition: true,
-	        expression: {
-	          interpolated: true,
-	          parameters: ["zoom"]
-	        },
-	        "property-type": "data-constant"
-	      }
-	    };
-	    Layer$$1.call(this, options);
+	      options
+	    );
 	  }
 
 	  if ( Layer$$1 ) SampleFill.__proto__ = Layer$$1;
@@ -14317,29 +14320,31 @@
 	 */
 	var Particles = /*@__PURE__*/(function (Layer$$1) {
 	  function Particles(options) {
-	    this.propertySpec = {
-	      "particle-color": {
-	        type: "color",
-	        default: "white",
-	        expression: {
-	          interpolated: true,
-	          parameters: ["zoom", "feature"]
+	    Layer$$1.call(
+	      this, {
+	        "particle-color": {
+	          type: "color",
+	          default: "white",
+	          expression: {
+	            interpolated: true,
+	            parameters: ["zoom", "feature"]
+	          },
+	          "property-type": "data-driven"
 	        },
-	        "property-type": "data-driven"
+	        "particle-speed": {
+	          type: "number",
+	          minimum: 0,
+	          default: 0.75,
+	          transition: true,
+	          expression: {
+	            interpolated: true,
+	            parameters: ["zoom"]
+	          },
+	          "property-type": "data-constant"
+	        }
 	      },
-	      "particle-speed": {
-	        type: "number",
-	        minimum: 0,
-	        default: 0.75,
-	        transition: true,
-	        expression: {
-	          interpolated: true,
-	          parameters: ["zoom"]
-	        },
-	        "property-type": "data-constant"
-	      }
-	    };
-	    Layer$$1.call(this, options);
+	      options
+	    );
 	    this.dropRate = 0.003; // how often the particles move to a random place
 	    this.dropRateBump = 0.01; // drop rate increase relative to individual particle speed
 	    this._numParticles = 65536;
@@ -14412,7 +14417,7 @@
 	    if (this.windData) { this.update(gl, matrix); }
 	  };
 
-	  Particles.prototype.update = function update (gl, matrix) {
+	  Particles.prototype.update = function update (gl) {
 	    var blendingEnabled = gl.isEnabled(gl.BLEND);
 	    gl.disable(gl.BLEND);
 
@@ -14488,37 +14493,39 @@
 
 	var Arrows = /*@__PURE__*/(function (Layer$$1) {
 	  function Arrows(options) {
-	    this.propertySpec = {
-	      "arrow-min-size": {
-	        type: "number",
-	        minimum: 1,
-	        default: 40,
-	        expression: {
-	          interpolated: true,
-	          parameters: ["zoom"]
+	    Layer$$1.call(
+	      this, {
+	        "arrow-min-size": {
+	          type: "number",
+	          minimum: 1,
+	          default: 40,
+	          expression: {
+	            interpolated: true,
+	            parameters: ["zoom"]
+	          },
+	          "property-type": "data-constant"
 	        },
-	        "property-type": "data-constant"
+	        "arrow-color": {
+	          type: "color",
+	          default: "white",
+	          expression: {
+	            interpolated: true,
+	            parameters: ["zoom", "feature"]
+	          },
+	          "property-type": "data-driven"
+	        },
+	        "arrow-halo-color": {
+	          type: "color",
+	          default: "rgba(0,0,0,0)",
+	          expression: {
+	            interpolated: true,
+	            parameters: ["zoom"]
+	          },
+	          "property-type": "data-constant"
+	        }
 	      },
-	      "arrow-color": {
-	        type: "color",
-	        default: "white",
-	        expression: {
-	          interpolated: true,
-	          parameters: ["zoom", "feature"]
-	        },
-	        "property-type": "data-driven"
-	      },
-	      "arrow-halo-color": {
-	        type: "color",
-	        default: "rgba(0,0,0,0)",
-	        expression: {
-	          interpolated: true,
-	          parameters: ["zoom"]
-	        },
-	        "property-type": "data-constant"
-	      }
-	    };
-	    Layer$$1.call(this, options);
+	      options
+	    );
 	  }
 
 	  if ( Layer$$1 ) Arrows.__proto__ = Layer$$1;
@@ -14624,8 +14631,6 @@
 
 	function arrow (options) { return new Arrows(options); }
 
-	function objectWithoutProperties$1 (obj, exclude) { var target = {}; for (var k in obj) if (Object.prototype.hasOwnProperty.call(obj, k) && exclude.indexOf(k) === -1) target[k] = obj[k]; return target; }
-
 	function getJSON(url, callback) {
 	  var xhr = new XMLHttpRequest();
 	  xhr.responseType = "json";
@@ -14673,10 +14678,7 @@
 	  });
 
 	  function dispatchCallback(coords, cb) {
-	    var tiles = data.tiles;
-	    var rest = objectWithoutProperties$1( data, ["tiles"] );
-	    var windData = rest;
-	    cb(Object.assign({}, windData, { getTexture: cache[coords] }));
+	    cb(Object.assign({}, data, { getTexture: cache[coords] }));
 	  }
 
 	  function load(z, x, y) {
@@ -14930,7 +14932,7 @@
 	  }, 1000);
 	}
 
-	var index$1 = 3;
+	var index$1 = 0;
 
 	map2 = initializeConfig(mapContainer2, configs[index$1]);
 
