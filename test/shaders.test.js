@@ -1,11 +1,15 @@
 import glsl from "glslify";
 import { createShaderOutput, createShaderImage } from "./runShader";
-import { toMatchImageSnapshot } from "jest-image-snapshot";
+import { configureToMatchImageSnapshot } from "jest-image-snapshot";
 import createShader from "gl-shader";
 
 import * as util from "../src/util";
 
-expect.extend({ toMatchImageSnapshot });
+expect.extend({
+  toMatchImageSnapshot: configureToMatchImageSnapshot({
+    customDiffConfig: { threshold: 0.1 }
+  })
+});
 
 const coordinateTransform = glsl`
   precision highp float;
