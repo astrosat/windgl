@@ -11,7 +11,7 @@
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
-    "test": "jest",
+    "test": "if test \"$CI\" = 'true' || test \"$TRAVIS\" = 'true'; then \n  eslint src && jest \nelse jest --watch \nfi",
     "serve": "st -nc -i index.html",
     "start": "run-p  serve watch"
   },
@@ -21,16 +21,15 @@
     "particles"
   ],
   "author": [
-    "Vladimir Agafonkin",
     "Jakub Hampl"
   ],
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@babel/core": "^7.3.4",
     "@babel/preset-env": "^7.3.4",
     "babel-jest": "^24.3.1",
     "babel-plugin-glslify": "^2.0.0",
-    "eslint": "^3.15.0",
+    "eslint": "^5.15.0",
     "eslint-config-prettier": "^3.1.0",
     "eslint-plugin-prettier": "^3.0.0",
     "gl": "^4.1.1",
@@ -51,14 +50,21 @@
   },
   "eslintConfig": {
     "parserOptions": {
+      "ecmaVersion": 2018,
       "sourceType": "module"
     },
     "extends": [
-      "plugin:prettier/recommended"
+      "eslint:recommended"
     ],
     "plugins": [
       "prettier"
     ],
+    "env": {
+      "browser": true,
+      "commonjs": true,
+      "node": true,
+      "es6": true
+    },
     "rules": {
       "prettier/prettier": "error"
     }

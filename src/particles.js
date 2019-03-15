@@ -21,29 +21,31 @@ import particleDrawFrag from "./shaders/particle-draw.frag.glsl";
  */
 class Particles extends Layer {
   constructor(options) {
-    this.propertySpec = {
-      "particle-color": {
-        type: "color",
-        default: "white",
-        expression: {
-          interpolated: true,
-          parameters: ["zoom", "feature"]
+    super(
+      {
+        "particle-color": {
+          type: "color",
+          default: "white",
+          expression: {
+            interpolated: true,
+            parameters: ["zoom", "feature"]
+          },
+          "property-type": "data-driven"
         },
-        "property-type": "data-driven"
+        "particle-speed": {
+          type: "number",
+          minimum: 0,
+          default: 0.75,
+          transition: true,
+          expression: {
+            interpolated: true,
+            parameters: ["zoom"]
+          },
+          "property-type": "data-constant"
+        }
       },
-      "particle-speed": {
-        type: "number",
-        minimum: 0,
-        default: 0.75,
-        transition: true,
-        expression: {
-          interpolated: true,
-          parameters: ["zoom"]
-        },
-        "property-type": "data-constant"
-      }
-    };
-    super(options);
+      options
+    );
     this.dropRate = 0.003; // how often the particles move to a random place
     this.dropRateBump = 0.01; // drop rate increase relative to individual particle speed
     this._numParticles = 65536;
@@ -112,7 +114,7 @@ class Particles extends Layer {
     if (this.windData) this.update(gl, matrix);
   }
 
-  update(gl, matrix) {
+  update(gl) {
     const blendingEnabled = gl.isEnabled(gl.BLEND);
     gl.disable(gl.BLEND);
 

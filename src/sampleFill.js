@@ -6,51 +6,53 @@ import backgroundFrag from "./shaders/background.frag.glsl";
 
 class SampleFill extends Layer {
   constructor(options) {
-    this.propertySpec = {
-      "sample-fill-color": {
-        type: "color",
-        default: [
-          "interpolate",
-          ["linear"],
-          ["get", "speed"],
-          0.0,
-          "#3288bd",
-          10,
-          "#66c2a5",
-          20,
-          "#abdda4",
-          30,
-          "#e6f598",
-          40,
-          "#fee08b",
-          50,
-          "#fdae61",
-          60,
-          "#f46d43",
-          100.0,
-          "#d53e4f"
-        ],
-        doc: "The color of each pixel of this layer",
-        expression: {
-          interpolated: true,
-          parameters: ["zoom", "feature"]
+    super(
+      {
+        "sample-fill-color": {
+          type: "color",
+          default: [
+            "interpolate",
+            ["linear"],
+            ["get", "speed"],
+            0.0,
+            "#3288bd",
+            10,
+            "#66c2a5",
+            20,
+            "#abdda4",
+            30,
+            "#e6f598",
+            40,
+            "#fee08b",
+            50,
+            "#fdae61",
+            60,
+            "#f46d43",
+            100.0,
+            "#d53e4f"
+          ],
+          doc: "The color of each pixel of this layer",
+          expression: {
+            interpolated: true,
+            parameters: ["zoom", "feature"]
+          },
+          "property-type": "data-driven"
         },
-        "property-type": "data-driven"
+        "sample-opacity": {
+          type: "number",
+          default: 1,
+          minimum: 0,
+          maximum: 1,
+          transition: true,
+          expression: {
+            interpolated: true,
+            parameters: ["zoom"]
+          },
+          "property-type": "data-constant"
+        }
       },
-      "sample-opacity": {
-        type: "number",
-        default: 1,
-        minimum: 0,
-        maximum: 1,
-        transition: true,
-        expression: {
-          interpolated: true,
-          parameters: ["zoom"]
-        },
-        "property-type": "data-constant"
-      }
-    };
-    super(options);
+      options
+    );
   }
 
   initialize(map, gl) {

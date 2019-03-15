@@ -5,37 +5,39 @@ import arrowsFrag from "./shaders/arrows.frag.glsl";
 
 class Arrows extends Layer {
   constructor(options) {
-    this.propertySpec = {
-      "arrow-min-size": {
-        type: "number",
-        minimum: 1,
-        default: 40,
-        expression: {
-          interpolated: true,
-          parameters: ["zoom"]
+    super(
+      {
+        "arrow-min-size": {
+          type: "number",
+          minimum: 1,
+          default: 40,
+          expression: {
+            interpolated: true,
+            parameters: ["zoom"]
+          },
+          "property-type": "data-constant"
         },
-        "property-type": "data-constant"
+        "arrow-color": {
+          type: "color",
+          default: "white",
+          expression: {
+            interpolated: true,
+            parameters: ["zoom", "feature"]
+          },
+          "property-type": "data-driven"
+        },
+        "arrow-halo-color": {
+          type: "color",
+          default: "rgba(0,0,0,0)",
+          expression: {
+            interpolated: true,
+            parameters: ["zoom"]
+          },
+          "property-type": "data-constant"
+        }
       },
-      "particle-color": {
-        type: "color",
-        default: "white",
-        expression: {
-          interpolated: true,
-          parameters: ["zoom", "feature"]
-        },
-        "property-type": "data-driven"
-      },
-      "particle-halo-color": {
-        type: "color",
-        default: "rgba(0,0,0,0)",
-        expression: {
-          interpolated: true,
-          parameters: ["zoom"]
-        },
-        "property-type": "data-constant"
-      }
-    };
-    super(options);
+      options
+    );
   }
 
   initialize(map, gl) {
@@ -43,7 +45,7 @@ class Arrows extends Layer {
     this.initializeGrid();
   }
 
-  setParticleColor(expr) {
+  setArrowColor(expr) {
     this.buildColorRamp(expr);
   }
 
@@ -116,10 +118,10 @@ class Arrows extends Layer {
     gl.uniform1f(program.u_dateline_offset, dateLineOffset);
     gl.uniform4f(
       program.u_halo_color,
-      this.particleHaloColor.r,
-      this.particleHaloColor.g,
-      this.particleHaloColor.b,
-      this.particleHaloColor.a
+      this.arrowHaloColor.r,
+      this.arrowHaloColor.g,
+      this.arrowHaloColor.b,
+      this.arrowHaloColor.a
     );
 
     gl.uniformMatrix4fv(program.u_matrix, false, matrix);

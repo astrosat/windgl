@@ -6,11 +6,12 @@ import { expression } from "mapbox-gl/dist/style-spec";
  * stuff as well as a lot of the bookkeeping.
  */
 export default class Layer {
-  constructor({ id, source, ...options }) {
+  constructor(propertySpec, { id, source, ...options }) {
     this.id = id;
     this.type = "custom";
     this.renderingMode = "2d";
     this.source = source;
+    this.propertySpec = propertySpec;
 
     this._zoomUpdatable = {};
     this._propsOnInit = {};
@@ -135,7 +136,7 @@ export default class Layer {
     Object.entries(this._zoomUpdatable).forEach(([k, v]) => {
       this._setPropertyValue(k, v);
     });
-    map.on("zoom", this.zoom.bind(this));
+    this.map.on("zoom", this.zoom.bind(this));
   }
 
   // Most properties allow zoom dependent styling. Here we update those.

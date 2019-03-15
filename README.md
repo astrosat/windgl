@@ -43,7 +43,7 @@ This package offers several ways to visualize wind speed.
 
 ### Sample Fill
 
-![Sample Fill](./demo/random/sampleFill.png)
+![Sample Fill](./docs/random/sampleFill.png)
 
 This layer will use a color map to show the wind speed at each pixel (interpolated from the data set). You can customize it with the following properties:
 
@@ -81,7 +81,7 @@ A `number` between `0` and `1`. Indicates the global opacity of the layer. You c
 
 ### Particles
 
-![Particles](./demo/random/particles.png)
+![Particles](./docs/random/particles.png)
 
 A particle layer showing wind speed by animating particles based on the wind speed. You can customize it with the following properties:
 
@@ -97,7 +97,7 @@ You can adjust the properties by calling `setProperty(property, value)`.
 
 ### Arrows
 
-![Arrows](./demo/random/arrows.png)
+![Arrows](./docs/random/arrows.png)
 
 A vector field layer. You can customize it with the following properties:
 
@@ -117,6 +117,24 @@ A `color` value. You can interpolate based on zoom. The color of an outline draw
 
 3. Datasource tiling isn't implemented.
 
-## Backend
+## Data
 
-The backend format will be documented later. Sorry. The main idea is that it should return a small JSON and an image that encodes the grib data. See `demo/2016112000.json` as an example.
+This visualization is designed to visualize wind speed data based on a regular grid - such that is typically available from forecast models. This data is encoded in a texture in [plate carrée](https://en.wikipedia.org/wiki/Equirectangular_projection) projection where the R channel corresponds to x (or u), and the G channel corresponds to y (or v). However, these encodings are relative to the total observed range which must be encoded in an accompanying JSON file:
+
+```json
+{
+  "source": "http://nomads.ncep.noaa.gov",
+  "date": "2016-11-20T00:00Z",
+  "width": 360,
+  "height": 180,
+  "uMin": -21.32,
+  "uMax": 26.8,
+  "vMin": -21.57,
+  "vMax": 21.42,
+  "tiles": ["https://example.com/demo/wind/{z}/{x}/{y}.png"]
+}
+```
+
+The format is designed for tiling, but this hasn't been implemented in the visualization yet.
+
+You can use the provided tool to get the data. Simply go to the `data` directory, create a python virtualenv with dependencies using Pipenv and the provided pipfile. Then run `gfswind2png.py --help` for instructions.
