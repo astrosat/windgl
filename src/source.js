@@ -14,7 +14,8 @@ function getJSON(url, callback) {
   xhr.send();
 }
 
-export default url => {
+export default relUrl => {
+  const url = new URL(relUrl, window.location);
   /**
    * A note on how this works:
    * 0. At any moment we can recieve a request for a tile.
@@ -52,14 +53,17 @@ export default url => {
 
   function load(z, x, y) {
     const windImage = new Image();
-    const url = data.tiles[0]
-      .replace(/{z}/g, z)
-      .replace(/{x}/g, x)
-      .replace(/{y}/g, y);
-    if (new URL(url).origin !== window.location.origin) {
+    const tileUrl = new URL(
+      data.tiles[0]
+        .replace(/{z}/g, z)
+        .replace(/{x}/g, x)
+        .replace(/{y}/g, y),
+      url
+    );
+    if (tileUrl.origin !== window.location.origin) {
       windImage.crossOrigin = "anonymous";
     }
-    windImage.src = url;
+    windImage.src = tileUrl;
     windImage.onload = () => {
       const coords = [z, x, y].join("/");
       let texture;

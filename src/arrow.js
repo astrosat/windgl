@@ -16,7 +16,7 @@ class Arrows extends Layer {
         },
         "property-type": "data-constant"
       },
-      "particle-color": {
+      "arrow-color": {
         type: "color",
         default: "white",
         expression: {
@@ -25,7 +25,7 @@ class Arrows extends Layer {
         },
         "property-type": "data-driven"
       },
-      "particle-halo-color": {
+      "arrow-halo-color": {
         type: "color",
         default: "rgba(0,0,0,0)",
         expression: {
@@ -43,7 +43,7 @@ class Arrows extends Layer {
     this.initializeGrid();
   }
 
-  setParticleColor(expr) {
+  setArrowColor(expr) {
     this.buildColorRamp(expr);
   }
 
@@ -116,10 +116,10 @@ class Arrows extends Layer {
     gl.uniform1f(program.u_dateline_offset, dateLineOffset);
     gl.uniform4f(
       program.u_halo_color,
-      this.particleHaloColor.r,
-      this.particleHaloColor.g,
-      this.particleHaloColor.b,
-      this.particleHaloColor.a
+      this.arrowHaloColor.r,
+      this.arrowHaloColor.g,
+      this.arrowHaloColor.b,
+      this.arrowHaloColor.a
     );
 
     gl.uniformMatrix4fv(program.u_matrix, false, matrix);

@@ -14107,7 +14107,7 @@
 
       this$1._setPropertyValue(k, v);
     });
-    map.on("zoom", this.zoom.bind(this));
+    this.map.on("zoom", this.zoom.bind(this));
   };
 
   // Most properties allow zoom dependent styling. Here we update those.
@@ -14452,7 +14452,7 @@
           },
           "property-type": "data-constant"
         },
-        "particle-color": {
+        "arrow-color": {
           type: "color",
           default: "white",
           expression: {
@@ -14461,7 +14461,7 @@
           },
           "property-type": "data-driven"
         },
-        "particle-halo-color": {
+        "arrow-halo-color": {
           type: "color",
           default: "rgba(0,0,0,0)",
           expression: {
@@ -14483,7 +14483,7 @@
       this.initializeGrid();
     };
 
-    Arrows.prototype.setParticleColor = function setParticleColor (expr) {
+    Arrows.prototype.setArrowColor = function setArrowColor (expr) {
       this.buildColorRamp(expr);
     };
 
@@ -14560,10 +14560,10 @@
       gl.uniform1f(program.u_dateline_offset, dateLineOffset);
       gl.uniform4f(
         program.u_halo_color,
-        this.particleHaloColor.r,
-        this.particleHaloColor.g,
-        this.particleHaloColor.b,
-        this.particleHaloColor.a
+        this.arrowHaloColor.r,
+        this.arrowHaloColor.g,
+        this.arrowHaloColor.b,
+        this.arrowHaloColor.a
       );
 
       gl.uniformMatrix4fv(program.u_matrix, false, matrix);
@@ -14593,7 +14593,8 @@
     xhr.send();
   }
 
-  function source (url) {
+  function source (relUrl) {
+    var url = new URL(relUrl, window.location);
     /**
      * A note on how this works:
      * 0. At any moment we can recieve a request for a tile.
@@ -14633,14 +14634,17 @@
 
     function load(z, x, y) {
       var windImage = new Image();
-      var url = data.tiles[0]
-        .replace(/{z}/g, z)
-        .replace(/{x}/g, x)
-        .replace(/{y}/g, y);
-      if (new URL(url).origin !== window.location.origin) {
+      var tileUrl = new URL(
+        data.tiles[0]
+          .replace(/{z}/g, z)
+          .replace(/{x}/g, x)
+          .replace(/{y}/g, y),
+        url
+      );
+      if (tileUrl.origin !== window.location.origin) {
         windImage.crossOrigin = "anonymous";
       }
-      windImage.src = url;
+      windImage.src = tileUrl;
       windImage.onload = function () {
         var coords = [z, x, y].join("/");
         var texture;

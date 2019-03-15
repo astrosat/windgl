@@ -21,10 +21,9 @@
     "particles"
   ],
   "author": [
-    "Vladimir Agafonkin",
     "Jakub Hampl"
   ],
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@babel/core": "^7.3.4",
     "@babel/preset-env": "^7.3.4",

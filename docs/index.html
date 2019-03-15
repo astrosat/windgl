@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>WebGL wind simulation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+</head>
+<style>
+body { margin: 0; padding: 0; overflow: hidden;}
+.map { display: block; width: 100vw; height: 100vh; position: absolute !important; top: 0;  }
+#map1 {
+    left: 0;
+}
+#map2 {
+    left: 100%;
+}
+#next {
+    position: absolute; bottom: 50px; left: calc(50vw - 60px);
+    width: 120px; border: none; border-radius: 40px;
+    padding: 10px 0; cursor: pointer;
+    margin: auto;
+}
+</style>
+<body>
+<div id="map1" class="map"></div>
+<div id="map2" class="map"></div>
+<button id="next">Next Style</button>
+<link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.53.0/mapbox-gl.css' rel='stylesheet' />
+<script src="index.js"></script>
+</body>
+</html>
