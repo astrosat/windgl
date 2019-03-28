@@ -144,7 +144,7 @@ class Particles extends Layer {
   }
 
   // This is a callback from mapbox for rendering into a texture
-  prerender(gl, matrix) {
+  prerender(gl) {
     if (this.windData) {
       const blendingEnabled = gl.isEnabled(gl.BLEND);
       gl.disable(gl.BLEND);

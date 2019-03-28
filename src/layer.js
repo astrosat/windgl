@@ -119,7 +119,6 @@ export default class Layer {
 
   computeVisibleTiles(pixelToGridRatio, tileSize, { maxzoom, minzoom }) {
     const pixels = this.gl.canvas.height * this.map.getZoom();
-    const pixelZoom = Math.floor(this.map.getZoom());
     const actualZoom = pixels / (tileSize * pixelToGridRatio);
 
     const practicalZoom = Math.max(

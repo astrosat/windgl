@@ -14171,7 +14171,6 @@
       var minzoom = ref.minzoom;
 
     var pixels = this.gl.canvas.height * this.map.getZoom();
-    var pixelZoom = Math.floor(this.map.getZoom());
     var actualZoom = pixels / (tileSize * pixelToGridRatio);
 
     var practicalZoom = Math.max(
@@ -14265,7 +14264,6 @@
     var tiles = this.computeLoadableTiles();
     tiles.forEach(function (tile$$1) {
       if (!this$1._tiles[tile$$1]) {
-        console.log(("loading " + tile$$1));
         this$1.source.loadTile(tile$$1, this$1.tileLoaded.bind(this$1));
       }
     });
@@ -14282,15 +14280,12 @@
   Layer.prototype.render = function render (gl, matrix) {
       var this$1 = this;
 
-    console.log("render");
     if (this.windData) {
-      console.log("render with windData");
       this.computeVisibleTiles(
         this.pixelToGridRatio,
         Math.min(this.windData.width, this.windData.height),
         this.windData
       ).forEach(function (tile$$1) {
-        console.log("visible tile", tile$$1, this$1._tiles[tile$$1]);
         var texture = this$1._tiles[tile$$1];
         if (!texture) { return; }
         this$1.draw(gl, matrix, texture, tile$$1.viewMatrix());
@@ -14302,7 +14297,6 @@
 
   var SampleFill = /*@__PURE__*/(function (Layer$$1) {
     function SampleFill(options) {
-      this.pixelToGridRatio = 20;
       Layer$$1.call(
         this, {
           "sample-fill-color": {
@@ -14350,6 +14344,7 @@
         },
         options
       );
+      this.pixelToGridRatio = 20;
     }
 
     if ( Layer$$1 ) SampleFill.__proto__ = Layer$$1;
@@ -14555,7 +14550,7 @@
     };
 
     // This is a callback from mapbox for rendering into a texture
-    Particles.prototype.prerender = function prerender (gl, matrix) {
+    Particles.prototype.prerender = function prerender (gl) {
       var this$1 = this;
 
       if (this.windData) {
@@ -14898,7 +14893,6 @@
     };
 
     Arrows.prototype.draw = function draw (gl, matrix, tile, offset) {
-      console.log("drawing", tile);
       var program = this.arrowsProgram;
       gl.useProgram(program.program);
 
@@ -14925,11 +14919,6 @@
       gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin);
       gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax);
       gl.uniformMatrix4fv(program.u_offset, false, offset);
-      gl.uniformMatrix4fv(
-        program.u_offset_inverse,
-        false,
-        matrixInverse(offset)
-      );
       gl.uniform4f(
         program.u_halo_color,
         this.arrowHaloColor.r,
