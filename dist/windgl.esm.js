@@ -99,6 +99,92 @@ function bindFramebuffer(gl, framebuffer, texture) {
   }
 }
 
+function matrixInverse(matrix) {
+  return new window.DOMMatrixReadOnly(matrix).inverse().toFloat32Array();
+}
+
+var tile2WSG84 = function (c, z) { return c / Math.pow(2, z); };
+
+var tile = function (z, x, y, wrap) {
+  if ( wrap === void 0 ) wrap = 0;
+
+  return ({
+  z: z,
+  x: x,
+  y: y,
+  wrap: wrap,
+  toString: function toString() {
+    return (z + "/" + x + "/" + y);
+  },
+  parent: function parent() {
+    if (z > 0) { return tile(z - 1, x >> 1, y >> 1, wrap); }
+    else { return tile(z, x, y, wrap); }
+  },
+  children: function children() {
+    return [
+      tile(z + 1, x * 2, y * 2, wrap),
+      tile(z + 1, x * 2 + 1, y * 2, wrap),
+      tile(z + 1, x * 2 + 1, y * 2 + 1, wrap),
+      tile(z + 1, x * 2, y * 2 + 1, wrap)
+    ];
+  },
+  siblings: function siblings() {
+    var this$1 = this;
+
+    if (z == 0) {
+      return [];
+    } else {
+      return this.parent()
+        .children()
+        .filter(function (t) { return !this$1.isEqual(t); });
+    }
+  },
+  isEqual: function isEqual(other) {
+    other.x === x && other.y === y && other.z === z && other.wrap === wrap;
+  },
+  wgs84UnitBounds: function wgs84UnitBounds() {
+    return [
+      tile2WSG84(x, z),
+      tile2WSG84(y, z),
+      tile2WSG84(x + 1, z),
+      tile2WSG84(y + 1, z)
+    ];
+  },
+  viewMatrix: function viewMatrix(scale) {
+    if ( scale === void 0 ) scale = 1;
+
+    return new window.DOMMatrix()
+      .translate(
+        tile2WSG84(x, z) + wrap - tile2WSG84((scale - 1) / 2, z),
+        tile2WSG84(y, z) - tile2WSG84((scale - 1) / 2, z)
+      )
+      .scale(
+        (tile2WSG84(x + 1, z) - tile2WSG84(x, z)) * scale,
+        (tile2WSG84(y + 1, z) - tile2WSG84(y, z)) * scale
+      )
+      .toFloat32Array();
+  },
+  isRoot: function isRoot() {
+    return z === 0;
+  },
+  neighbor: function neighbor(hor, ver) {
+    if (z === 0) {
+      return tile(0, 0, 0, wrap + hor);
+    }
+    var max = Math.pow(2, z);
+    return tile(
+      z,
+      (x + hor + max) % max,
+      (y + ver + max) % max,
+      x + hor < 0 ? wrap - 1 : x + hor > max ? wrap + 1 : wrap
+    );
+  },
+  quadrant: function quadrant() {
+    return [x % 2, y % 2];
+  }
+});
+};
+
 function objectWithoutProperties (obj, exclude) { var target = {}; for (var k in obj) if (Object.prototype.hasOwnProperty.call(obj, k) && exclude.indexOf(k) === -1) target[k] = obj[k]; return target; }
 
 /**
@@ -120,8 +206,10 @@ var Layer = function Layer(propertySpec, ref) {
 
   this._zoomUpdatable = {};
   this._propsOnInit = {};
+  this.tileZoomOffset = 0;
+  this._tiles = {};
 
-  this.source.loadTile(0, 0, 0, this.setWind.bind(this));
+  this.source.metadata(this.setWind.bind(this));
 
   // This will initialize the default values
   Object.keys(this.propertySpec).forEach(function (spec) {
@@ -210,6 +298,7 @@ Layer.prototype.buildColorRamp = function buildColorRamp (expr) {
   );
 };
 
+// data management
 Layer.prototype.setWind = function setWind (windData) {
   this.windData = windData;
   if (this.map) {
@@ -217,6 +306,50 @@ Layer.prototype.setWind = function setWind (windData) {
     this.map.triggerRepaint();
   }
 };
+
+Layer.prototype.computeVisibleTiles = function computeVisibleTiles (pixelToGridRatio, tileSize, ref) {
+    var maxzoom = ref.maxzoom;
+    var minzoom = ref.minzoom;
+
+  var pixels = this.gl.canvas.height * this.map.getZoom();
+  var pixelZoom = Math.floor(this.map.getZoom());
+  var actualZoom = pixels / (tileSize * pixelToGridRatio);
+
+  var practicalZoom = Math.max(
+    Math.min(maxzoom, Math.floor(actualZoom)),
+    minzoom
+  );
+
+  var bounds = this.map.getBounds();
+
+  var tileCount = Math.pow( 2, practicalZoom );
+
+  var top = Math.floor(((90 - bounds.getNorth()) / 180) * tileCount);
+  var bottom = Math.ceil(((90 - bounds.getSouth()) / 180) * tileCount);
+  var left = Math.floor(((bounds.getWest() + 180) / 360) * tileCount);
+  var right = Math.ceil(((bounds.getEast() + 180) / 360) * tileCount);
+
+  var tiles = [];
+  for (var y = top; y < bottom; y++) {
+    for (var x = left; x < right; x++) {
+      var properX = x % tileCount;
+      if (properX < 0) {
+        properX += tileCount;
+      }
+      tiles.push(
+        tile(practicalZoom, properX, y, Math.floor(x / tileCount))
+      );
+    }
+  }
+  return tiles;
+};
+
+Layer.prototype.tileLoaded = function tileLoaded (tile$$1) {
+  this._tiles[tile$$1] = tile$$1;
+  this.map.triggerRepaint();
+};
+
+// lifecycle
 
 // called by mapboxgl
 Layer.prototype.onAdd = function onAdd (map, gl) {
@@ -235,7 +368,6 @@ Layer.prototype._initialize = function _initialize () {
     var this$1 = this;
 
   this.initialize(this.map, this.gl);
-  this.windTexture = this.windData.getTexture(this.gl);
   Object.entries(this._propsOnInit).forEach(function (ref) {
       var k = ref[0];
       var v = ref[1];
@@ -243,13 +375,9 @@ Layer.prototype._initialize = function _initialize () {
     this$1._setPropertyValue(k, v);
   });
   this._propsOnInit = {};
-  Object.entries(this._zoomUpdatable).forEach(function (ref) {
-      var k = ref[0];
-      var v = ref[1];
-
-    this$1._setPropertyValue(k, v);
-  });
+  this.zoom();
   this.map.on("zoom", this.zoom.bind(this));
+  this.map.on("move", this.move.bind(this));
 };
 
 // Most properties allow zoom dependent styling. Here we update those.
@@ -264,6 +392,26 @@ Layer.prototype.zoom = function zoom () {
   });
 };
 
+Layer.prototype.computeLoadableTiles = function computeLoadableTiles () {
+  return this.computeVisibleTiles(
+    this.pixelToGridRatio,
+    Math.min(this.windData.width, this.windData.height),
+    this.windData
+  );
+};
+
+Layer.prototype.move = function move () {
+    var this$1 = this;
+
+  var tiles = this.computeLoadableTiles();
+  tiles.forEach(function (tile$$1) {
+    if (!this$1._tiles[tile$$1]) {
+      console.log(("loading " + tile$$1));
+      this$1.source.loadTile(tile$$1, this$1.tileLoaded.bind(this$1));
+    }
+  });
+};
+
 // This is called when the map is destroyed or the gl context lost.
 Layer.prototype.onRemove = function onRemove (map) {
   delete this.gl;
@@ -273,26 +421,29 @@ Layer.prototype.onRemove = function onRemove (map) {
 
 // called by mapboxgl
 Layer.prototype.render = function render (gl, matrix) {
+    var this$1 = this;
+
+  console.log("render");
   if (this.windData) {
-    var bounds = this.map.getBounds();
-    var eastIter = Math.max(0, Math.ceil((bounds.getEast() - 180) / 360));
-    var westIter = Math.max(0, Math.ceil((bounds.getWest() + 180) / -360));
-    this.draw(gl, matrix, 0);
-    for (var i = 1; i <= eastIter; i++) {
-      this.draw(gl, matrix, i);
-    }
-    for (var i$1 = 1; i$1 <= westIter; i$1++) {
-      this.draw(gl, matrix, -i$1);
-    }
+    console.log("render with windData");
+    this.computeVisibleTiles(
+      this.pixelToGridRatio,
+      Math.min(this.windData.width, this.windData.height),
+      this.windData
+    ).forEach(function (tile$$1) {
+      console.log("visible tile", tile$$1, this$1._tiles[tile$$1]);
+      var texture = this$1._tiles[tile$$1];
+      if (!texture) { return; }
+      this$1.draw(gl, matrix, texture, tile$$1.viewMatrix());
+    });
   }
 };
 
-var backgroundVert = "precision mediump float;\n#define GLSLIFY 1\n\nattribute vec2 a_pos;\n\nvarying vec2 v_tex_pos;\n\nuniform mat4 u_matrix;\n\nuniform float u_dateline_offset;\n\nvoid main() {\n    v_tex_pos = a_pos;\n    gl_Position = u_matrix * vec4(a_pos + vec2(u_dateline_offset, 0), 0, 1);\n}\n"; // eslint-disable-line
-
-var backgroundFrag = "precision mediump float;\n#define GLSLIFY 1\n\nconst float PI_0 = 3.14159265359;\n\n/**\n * Converts mapbox style pseudo-mercator coordinates (this is just like mercator, but the unit isn't a meter, but 0..1\n * spans the entire world) into texture like WGS84 coordinates (this is just like WGS84, but instead of angles, it uses\n * intervals of 0..1).\n */\nvec2 mercatorToWGS84(vec2 xy) {\n    // convert lat into an angle\n    float y = radians(180.0 - xy.y * 360.0);\n    // use the formula to convert mercator -> WGS84\n    y = 360.0 / PI_0  * atan(exp(y)) - 90.0;\n    // normalize back into 0..1 interval\n    y = y / -180.0 + 0.5;\n    // pass lng through, as it doesn't change\n    return vec2(xy.x, y);\n}\n\nuniform sampler2D u_wind;\nuniform vec2 u_wind_res;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform float u_opacity;\n\nvarying vec2 v_tex_pos;\nvarying vec2 v_st;\n\nuniform mat4 u_matrix;\n\nuniform sampler2D u_color_ramp;\nuniform mat4 u_inverse_matrix;\n\nconst float PI = 3.14159265359;\n\n/**\n * Wind speed lookup. Returns a vector that isn't re-normalized to real world units.\n * Uses manual bilinear filtering based on 4 adjacent pixels for smooth interpolation.\n */\nvec2 windSpeedRelative(const vec2 uv) {\n    // return texture2D(u_wind, uv).rg; // lower-res hardware filtering\n    vec2 px = 1.0 / u_wind_res;\n    vec2 vc = (floor(uv * u_wind_res)) * px;\n    vec2 f = fract(uv * u_wind_res);\n    vec2 tl = texture2D(u_wind, vc).rg;\n    vec2 tr = texture2D(u_wind, vc + vec2(px.x, 0)).rg;\n    vec2 bl = texture2D(u_wind, vc + vec2(0, px.y)).rg;\n    vec2 br = texture2D(u_wind, vc + px).rg;\n    return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);\n}\n\nvec2 windSpeed(const vec2 uv) {\n    return mix(u_wind_min, u_wind_max, windSpeedRelative(uv));\n}\n\n/**\n * Returns the magnitude of the wind speed vector as a proportion of the maximum speed.\n */\nfloat windSpeedMagnitude(const vec2 uv) {\n    return length(windSpeed(uv)) / length(u_wind_max);\n}\n\nvoid main() {\n    // modulus is used to make sure this wraps nicely when zoomed out\n    vec2 tex_pos = mercatorToWGS84(v_tex_pos);\n    float speed_t = windSpeedMagnitude(tex_pos);\n    // color ramp is encoded in a 16x16 texture\n    vec2 ramp_pos = vec2(\n        fract(16.0 * speed_t),\n        floor(16.0 * speed_t) / 16.0);\n\n    vec4 color = texture2D(u_color_ramp, ramp_pos);\n\n    gl_FragColor = vec4(floor(255.0 * color * u_opacity) / 255.0);\n}\n"; // eslint-disable-line
+var sampleFill = function (gl) { return createProgram(gl, "precision mediump float;vec2 j(vec2 b){float a=-180.*b.y+90.;a=(180.-57.29578*log(tan(.785398+a*3.141593/360.)))/360.;return vec2(b.x,a);}vec2 g(vec2 b,mat4 c){vec4 a=c*vec4(b,1,1);return a.xy/a.w;}uniform mat4 u_matrix,u_offset;attribute vec2 a_pos;varying vec2 h;void main(){vec2 b=g(a_pos,u_offset),a=j(b);h=a,gl_Position=u_matrix*vec4(a,0,1);}", "precision mediump float;vec2 k(vec2 b){float a=radians(180.-b.y*360.);a=114.591559*atan(exp(a))-90.,a=a/-180.+.5;return vec2(b.x,a);}vec2 g(vec2 b,mat4 c){vec4 a=c*vec4(b,1,1);return a.xy/a.w;}uniform vec2 u_wind_res,u_wind_min,u_wind_max;uniform float u_opacity;uniform sampler2D u_wind,u_color_ramp;uniform mat4 u_offset_inverse;varying vec2 h;vec2 d(const vec2 a){return texture2D(u_wind,a).rg;}vec2 l(const vec2 e){vec2 a=1./u_wind_res,b=floor(e*u_wind_res)*a,c=fract(e*u_wind_res),f=d(b),m=d(b+vec2(a.x,0)),n=d(b+vec2(0,a.y)),o=d(b+a);return mix(mix(f,m,c.x),mix(n,o,c.x),c.y);}vec2 p(const vec2 a){return mix(u_wind_min,u_wind_max,l(a));}float i(const vec2 a){return length(p(a))/length(u_wind_max);}void main(){vec2 b=k(h),c=g(b,u_offset_inverse);float a=i(c);vec2 e=vec2(fract(16.*a),floor(16.*a)/16.);vec4 f=texture2D(u_color_ramp,e);gl_FragColor=vec4(floor(255.*f*u_opacity)/255.);}"); };
 
 var SampleFill = /*@__PURE__*/(function (Layer$$1) {
   function SampleFill(options) {
+    this.pixelToGridRatio = 20;
     Layer$$1.call(
       this, {
         "sample-fill-color": {
@@ -347,11 +498,7 @@ var SampleFill = /*@__PURE__*/(function (Layer$$1) {
   SampleFill.prototype.constructor = SampleFill;
 
   SampleFill.prototype.initialize = function initialize (map, gl) {
-    this.backgroundProgram = createProgram(
-      gl,
-      backgroundVert,
-      backgroundFrag
-    );
+    this.backgroundProgram = sampleFill(gl);
 
     this.quadBuffer = createBuffer(
       gl,
@@ -363,21 +510,26 @@ var SampleFill = /*@__PURE__*/(function (Layer$$1) {
     this.buildColorRamp(expr);
   };
 
-  SampleFill.prototype.draw = function draw (gl, matrix, dateLineOffset) {
+  SampleFill.prototype.draw = function draw (gl, matrix, tile, offset) {
     var opacity = this.sampleOpacity;
     var program = this.backgroundProgram;
     gl.useProgram(program.program);
 
     bindAttribute(gl, this.quadBuffer, program.a_pos, 2);
 
-    bindTexture(gl, this.windTexture, 0);
+    bindTexture(gl, tile.getTexture(gl), 0);
     bindTexture(gl, this.colorRampTexture, 2);
 
     gl.uniform1i(program.u_wind, 0);
     gl.uniform1i(program.u_color_ramp, 2);
 
     gl.uniform1f(program.u_opacity, opacity);
-    gl.uniform1f(program.u_dateline_offset, dateLineOffset);
+    gl.uniformMatrix4fv(program.u_offset, false, offset);
+    gl.uniformMatrix4fv(
+      program.u_offset_inverse,
+      false,
+      matrixInverse(offset)
+    );
     gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height);
     gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin);
     gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax);
@@ -389,15 +541,11 @@ var SampleFill = /*@__PURE__*/(function (Layer$$1) {
   return SampleFill;
 }(Layer));
 
-function sampleFill (options) { return new SampleFill(options); }
+function sampleFill$1 (options) { return new SampleFill(options); }
 
-var particleUpdateVert = "precision mediump float;\n#define GLSLIFY 1\n\nattribute vec2 a_pos;\n\nvarying vec2 v_tex_pos;\n\nvoid main() {\n    v_tex_pos = a_pos;\n    gl_Position = vec4(1.0 - 2.0 * a_pos, 0, 1);\n}\n"; // eslint-disable-line
+var particleUpdate = function (gl) { return createProgram(gl, "precision highp float;attribute vec2 a_pos;varying vec2 h;void main(){h=a_pos,gl_Position=vec4(1.-2.*a_pos,0,1);}const vec3 f=vec3(12.9898,78.233,4375.85453);", "precision highp float;vec2 g(vec2 b,mat4 c){vec4 a=c*vec4(b,1,1);return a.xy/a.w;}uniform sampler2D u_particles,u_wind_top_left,u_wind_top_center,u_wind_top_right,u_wind_middle_left,u_wind_middle_center,u_wind_middle_right,u_wind_bottom_left,u_wind_bottom_center,u_wind_bottom_right;uniform vec2 u_wind_res,u_wind_min,u_wind_max;uniform bool u_initialize;uniform float u_rand_seed,u_speed_factor,u_drop_rate,u_drop_rate_bump;uniform mat4 u_data_matrix;varying vec2 h;const vec3 f=vec3(12.9898,78.233,4375.85453);float n(const vec2 b){float a=dot(f.xy,b);return fract(sin(a)*(f.z+a));}vec2 d(const vec2 a){return a.x>1.&&a.y>1.?texture2D(u_wind_bottom_right,a-vec2(1,1)).rg:a.x>0.&&a.y>1.?texture2D(u_wind_bottom_center,a-vec2(0,1)).rg:a.y>1.?texture2D(u_wind_bottom_left,a-vec2(-1,1)).rg:a.x>1.&&a.y>0.?texture2D(u_wind_middle_right,a-vec2(1,0)).rg:a.x>0.&&a.y>0.?texture2D(u_wind_middle_center,a-vec2(0,0)).rg:a.y>0.?texture2D(u_wind_middle_left,a-vec2(-1,0)).rg:a.x>1.?texture2D(u_wind_top_right,a-vec2(1,-1)).rg:a.x>0.?texture2D(u_wind_top_center,a-vec2(0,-1)).rg:texture2D(u_wind_top_left,a-vec2(-1,-1)).rg;}vec2 r(const vec2 e){vec2 a=1./u_wind_res,b=floor(e*u_wind_res)*a,c=fract(e*u_wind_res),l=d(b),k=d(b+vec2(a.x,0)),j=d(b+vec2(0,a.y)),m=d(b+a);return mix(mix(l,k,c.x),mix(j,m,c.x),c.y);}vec2 o(vec2 a){vec2 e=g(a,u_data_matrix),b=mix(u_wind_min,u_wind_max,r(e));float l=length(b)/length(u_wind_max);vec2 k=vec2(b.x,-b.y)*1e-4*u_speed_factor;a=fract(1.+a+k);vec2 c=(a+h)*u_rand_seed;float j=u_drop_rate+l*u_drop_rate_bump+smoothstep(.24,.5,length(a-vec2(.5,.5))*.7),m=step(1.-j,n(c));vec2 p=vec2(.5*n(c+1.3)+.25,.5*n(c+2.1)+.25);return mix(a,p,m);}void main(){vec4 b=texture2D(u_particles,h);vec2 a=vec2(b.r/255.+b.b,b.g/255.+b.a);a=o(a);if(u_initialize)for(int c=0;c<100;c++)a=o(a);gl_FragColor=vec4(fract(a*255.),floor(a*255.)/255.);}"); };
 
-var particleUpdateFrag = "precision highp float;\n#define GLSLIFY 1\n\nuniform sampler2D u_particles;\nuniform sampler2D u_wind;\nuniform vec2 u_wind_res;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform float u_rand_seed;\nuniform float u_speed_factor;\nuniform float u_drop_rate;\nuniform float u_drop_rate_bump;\n\nvarying vec2 v_tex_pos;\n\n// pseudo-random generator\nconst vec3 rand_constants = vec3(12.9898, 78.233, 4375.85453);\nfloat rand(const vec2 co) {\n    float t = dot(rand_constants.xy, co);\n    return fract(sin(t) * (rand_constants.z + t));\n}\n\n// wind speed lookup; use manual bilinear filtering based on 4 adjacent pixels for smooth interpolation\nvec2 lookup_wind(const vec2 uv) {\n    // return texture2D(u_wind, uv).rg; // lower-res hardware filtering\n    vec2 px = 1.0 / u_wind_res;\n    vec2 vc = (floor(uv * u_wind_res)) * px;\n    vec2 f = fract(uv * u_wind_res);\n    vec2 tl = texture2D(u_wind, vc).rg;\n    vec2 tr = texture2D(u_wind, vc + vec2(px.x, 0)).rg;\n    vec2 bl = texture2D(u_wind, vc + vec2(0, px.y)).rg;\n    vec2 br = texture2D(u_wind, vc + px).rg;\n    return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);\n}\n\nvoid main() {\n    vec4 color = texture2D(u_particles, v_tex_pos);\n    vec2 pos = vec2(\n        color.r / 255.0 + color.b,\n        color.g / 255.0 + color.a); // decode particle position from pixel RGBA\n\n    vec2 velocity = mix(u_wind_min, u_wind_max, lookup_wind(pos));\n    float speed_t = length(velocity) / length(u_wind_max);\n\n    vec2 offset = vec2(velocity.x , -velocity.y) * 0.0001 * u_speed_factor;\n\n    // update particle position, wrapping around the date line\n    pos = fract(1.0 + pos + offset);\n\n    // a random seed to use for the particle drop\n    vec2 seed = (pos + v_tex_pos) * u_rand_seed;\n\n    // drop rate is a chance a particle will restart at random position, to avoid degeneration\n    float drop_rate = u_drop_rate + speed_t * u_drop_rate_bump;\n    float drop = step(1.0 - drop_rate, rand(seed));\n\n    vec2 random_pos = vec2(\n        rand(seed + 1.3),\n        rand(seed + 2.1));\n     pos = mix(pos, random_pos, drop);\n\n    // encode the new particle position back into RGBA\n    gl_FragColor = vec4(\n        fract(pos * 255.0),\n        floor(pos * 255.0) / 255.0);\n}\n"; // eslint-disable-line
-
-var particleDrawVert = "#define M_PI 3.1415926535897932384626433832795\n\nprecision mediump float;\n#define GLSLIFY 1\n\nconst float PI = 3.14159265359;\n\n/**\n * Converts texture like WGS84 coordinates (this is just like WGS84, but instead of angles, it uses\n * intervals of 0..1) into mapbox style pseudo-mercator coordinates (this is just like mercator, but the unit isn't a meter, but 0..1\n * spans the entire world).\n */\nvec2 wgs84ToMercator(vec2 xy) {\n    // convert to angle\n    float y = -180.0 * xy.y + 90.0;\n    // use the formule to convert\n    y = (180.0 - (180.0 / PI * log(tan(PI / 4.0 + y * PI / 360.0)))) / 360.0;\n    // pass x through, as it doesn't change\n    return vec2(xy.x, y);\n}\n\nattribute float a_index;\n\nuniform sampler2D u_particles;\nuniform float u_particles_res;\nuniform mat4 u_matrix;\nuniform float u_dateline_offset;\n\nvarying vec2 v_particle_pos;\n\nvoid main() {\n    vec4 color = texture2D(u_particles, vec2(\n        fract(a_index / u_particles_res),\n        floor(a_index / u_particles_res) / u_particles_res));\n\n    // decode current particle position from the pixel's RGBA value\n    v_particle_pos = wgs84ToMercator(vec2(\n        color.r / 255.0 + color.b,\n        color.g / 255.0 + color.a));\n\n    gl_PointSize = 2.0;\n    gl_Position = u_matrix * vec4(v_particle_pos.xy + vec2(u_dateline_offset, 0), 0, 1);\n}\n"; // eslint-disable-line
-
-var particleDrawFrag = "precision mediump float;\n#define GLSLIFY 1\n\nuniform sampler2D u_wind;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform sampler2D u_color_ramp;\n\nvarying vec2 v_particle_pos;\n\nvoid main() {\n    vec2 velocity = mix(u_wind_min, u_wind_max, texture2D(u_wind, v_particle_pos).rg);\n    float speed_t = length(velocity) / length(u_wind_max);\n\n    // // color ramp is encoded in a 16x16 texture\n    vec2 ramp_pos = vec2(\n        fract(16.0 * speed_t),\n        floor(16.0 * speed_t) / 16.0);\n\n    gl_FragColor = texture2D(u_color_ramp, ramp_pos);\n}\n"; // eslint-disable-line
+var particleDraw = function (gl) { return createProgram(gl, "precision highp float;vec2 q(vec2 b){float a=-180.*b.y+90.;a=(180.-57.29578*log(tan(.785398+a*3.141593/360.)))/360.;return vec2(b.x,a);}vec2 g(vec2 b,mat4 c){vec4 a=c*vec4(b,1,1);return a.xy/a.w;}uniform sampler2D u_particles;uniform float u_particles_res;uniform mat4 u_matrix,u_offset;const vec3 f=vec3(12.9898,78.233,4375.85453);attribute float a_index;varying vec2 i;void main(){vec4 a=texture2D(u_particles,vec2(fract(a_index/u_particles_res),floor(a_index/u_particles_res)/u_particles_res));vec2 b=vec2(a.r/255.+a.b,a.g/255.+a.a),c=g(b,u_offset),e=q(c);i=b,gl_PointSize=2.,gl_Position=u_matrix*vec4(e,0,1);}", "precision highp float;vec2 g(vec2 b,mat4 c){vec4 a=c*vec4(b,1,1);return a.xy/a.w;}uniform sampler2D u_wind_top_left,u_wind_top_center,u_wind_top_right,u_wind_middle_left,u_wind_middle_center,u_wind_middle_right,u_wind_bottom_left,u_wind_bottom_center,u_wind_bottom_right,u_color_ramp;uniform vec2 u_wind_min,u_wind_max;uniform mat4 u_data_matrix;const vec3 f=vec3(12.9898,78.233,4375.85453);vec2 d(const vec2 a){return a.x>1.&&a.y>1.?texture2D(u_wind_bottom_right,a-vec2(1,1)).rg:a.x>0.&&a.y>1.?texture2D(u_wind_bottom_center,a-vec2(0,1)).rg:a.y>1.?texture2D(u_wind_bottom_left,a-vec2(-1,1)).rg:a.x>1.&&a.y>0.?texture2D(u_wind_middle_right,a-vec2(1,0)).rg:a.x>0.&&a.y>0.?texture2D(u_wind_middle_center,a-vec2(0,0)).rg:a.y>0.?texture2D(u_wind_middle_left,a-vec2(-1,0)).rg:a.x>1.?texture2D(u_wind_top_right,a-vec2(1,-1)).rg:a.x>0.?texture2D(u_wind_top_center,a-vec2(0,-1)).rg:texture2D(u_wind_top_left,a-vec2(-1,-1)).rg;}varying vec2 i;void main(){vec2 b=mix(u_wind_min,u_wind_max,d(g(i,u_data_matrix)));float a=length(b)/length(u_wind_max);vec2 c=vec2(fract(16.*a),floor(16.*a)/16.);gl_FragColor=texture2D(u_color_ramp,c);}"); };
 
 /**
  * This layer simulates a particles system where the particles move according
@@ -439,17 +587,68 @@ var Particles = /*@__PURE__*/(function (Layer$$1) {
       },
       options
     );
+    this.pixelToGridRatio = 20;
+    this.tileSize = 1024;
+
     this.dropRate = 0.003; // how often the particles move to a random place
     this.dropRateBump = 0.01; // drop rate increase relative to individual particle speed
     this._numParticles = 65536;
+    // This layer manages 2 kinds of tiles: data tiles (the same as other layers) and particle state tiles
+    this._particleTiles = {};
   }
 
   if ( Layer$$1 ) Particles.__proto__ = Layer$$1;
   Particles.prototype = Object.create( Layer$$1 && Layer$$1.prototype );
   Particles.prototype.constructor = Particles;
 
+  Particles.prototype.visibleParticleTiles = function visibleParticleTiles () {
+    return this.computeVisibleTiles(2, this.tileSize, {
+      minzoom: 0,
+      maxzoom: this.windData.maxzoom + 3 // how much overzoom to allow?
+    });
+  };
+
   Particles.prototype.setParticleColor = function setParticleColor (expr) {
     this.buildColorRamp(expr);
+  };
+
+  Particles.prototype.initializeParticleTile = function initializeParticleTile () {
+    // textures to hold the particle state for the current and the next frame
+    var particleStateTexture0 = createTexture(
+      this.gl,
+      this.gl.NEAREST,
+      this._randomParticleState,
+      this.particleStateResolution,
+      this.particleStateResolution
+    );
+    var particleStateTexture1 = createTexture(
+      this.gl,
+      this.gl.NEAREST,
+      this._randomParticleState,
+      this.particleStateResolution,
+      this.particleStateResolution
+    );
+    return { particleStateTexture0: particleStateTexture0, particleStateTexture1: particleStateTexture1, updated: false };
+  };
+
+  Particles.prototype.move = function move () {
+    var this$1 = this;
+
+    Layer$$1.prototype.move.call(this);
+    var tiles = this.visibleParticleTiles();
+    Object.keys(this._particleTiles).forEach(function (tile) {
+      if (tiles.filter(function (t) { return t.toString() == tile; }).length === 0) {
+        // cleanup
+        this$1.gl.deleteTexture(tile.particleStateTexture0);
+        this$1.gl.deleteTexture(tile.particleStateTexture1);
+        delete this$1._particleTiles[tile];
+      }
+    });
+    tiles.forEach(function (tile) {
+      if (!this$1._particleTiles[tile]) {
+        this$1._particleTiles[tile] = this$1.initializeParticleTile();
+      }
+    });
   };
 
   Particles.prototype.initializeParticles = function initializeParticles (gl, count) {
@@ -458,25 +657,10 @@ var Particles = /*@__PURE__*/(function (Layer$$1) {
     ));
     this._numParticles = particleRes * particleRes;
 
-    var particleState = new Uint8Array(this._numParticles * 4);
-    for (var i = 0; i < particleState.length; i++) {
-      particleState[i] = Math.floor(Math.random() * 256); // randomize the initial particle positions
+    this._randomParticleState = new Uint8Array(this._numParticles * 4);
+    for (var i = 0; i < this._randomParticleState.length; i++) {
+      this._randomParticleState[i] = Math.floor(Math.random() * 256); // randomize the initial particle positions
     }
-    // textures to hold the particle state for the current and the next frame
-    this.particleStateTexture0 = createTexture(
-      gl,
-      gl.NEAREST,
-      particleState,
-      particleRes,
-      particleRes
-    );
-    this.particleStateTexture1 = createTexture(
-      gl,
-      gl.NEAREST,
-      particleState,
-      particleRes,
-      particleRes
-    );
 
     var particleIndices = new Float32Array(this._numParticles);
     for (var i$1 = 0; i$1 < this._numParticles; i$1++) { particleIndices[i$1] = i$1; }
@@ -484,17 +668,10 @@ var Particles = /*@__PURE__*/(function (Layer$$1) {
   };
 
   Particles.prototype.initialize = function initialize (map, gl) {
-    this.updateProgram = createProgram(
-      gl,
-      particleUpdateVert,
-      particleUpdateFrag
-    );
+    var this$1 = this;
 
-    this.drawProgram = createProgram(
-      gl,
-      particleDrawVert,
-      particleDrawFrag
-    );
+    this.updateProgram = particleUpdate(gl);
+    this.drawProgram = particleDraw(gl);
 
     this.framebuffer = gl.createFramebuffer();
 
@@ -504,18 +681,141 @@ var Particles = /*@__PURE__*/(function (Layer$$1) {
     );
 
     this.initializeParticles(gl, this._numParticles);
+
+    this.nullTexture = createTexture(
+      gl,
+      gl.NEAREST,
+      new Uint8Array([0, 0, 0, 0]),
+      1,
+      1
+    );
+
+    this.nullTile = {
+      getTexture: function () { return this$1.nullTexture; }
+    };
   };
 
   // This is a callback from mapbox for rendering into a texture
   Particles.prototype.prerender = function prerender (gl, matrix) {
-    if (this.windData) { this.update(gl, matrix); }
+    var this$1 = this;
+
+    if (this.windData) {
+      var blendingEnabled = gl.isEnabled(gl.BLEND);
+      gl.disable(gl.BLEND);
+      var tiles = this.visibleParticleTiles();
+      tiles.forEach(function (tile) {
+        var found = this$1.findAssociatedDataTiles(tile);
+        if (found) {
+          this$1.update(gl, this$1._particleTiles[tile], found);
+          this$1._particleTiles[tile].updated = true;
+        }
+      });
+      if (blendingEnabled) { gl.enable(gl.BLEND); }
+      this.map.triggerRepaint();
+    }
   };
 
-  Particles.prototype.update = function update (gl) {
-    var blendingEnabled = gl.isEnabled(gl.BLEND);
-    gl.disable(gl.BLEND);
+  /**
+   * This method computes the ideal data tiles to support our particle tiles
+   */
+  Particles.prototype.computeLoadableTiles = function computeLoadableTiles () {
+    var this$1 = this;
 
-    bindFramebuffer(gl, this.framebuffer, this.particleStateTexture1);
+    var result = {};
+    var add = function (tile) { return (result[tile] = tile); };
+    this.visibleParticleTiles().forEach(function (tileID) {
+      var t = tileID;
+      var matrix = new DOMMatrix();
+      while (!t.isRoot()) {
+        if (t.z <= this$1.windData.maxzoom) { break; }
+        var ref = t.quadrant();
+        var x = ref[0];
+        var y = ref[1];
+        matrix.translateSelf(0.5 * x, 0.5 * y);
+        matrix.scaleSelf(0.5);
+        t = t.parent();
+      }
+
+      matrix.translateSelf(-0.5, -0.5);
+      matrix.scaleSelf(2, 2);
+
+      var tl = matrix.transformPoint(new window.DOMPoint(0, 0));
+      var br = matrix.transformPoint(new window.DOMPoint(1, 1));
+
+      add(t);
+
+      if (tl.x < 0 && tl.y < 0) { add(t.neighbor(-1, -1)); }
+      if (tl.x < 0) { add(t.neighbor(-1, 0)); }
+      if (tl.x < 0 && br.y > 1) { add(t.neighbor(-1, 1)); }
+
+      if (br.x > 1 && tl.y < 0) { add(t.neighbor(1, -1)); }
+      if (br.x > 1) { add(t.neighbor(1, 0)); }
+      if (br.x > 1 && br.y > 1) { add(t.neighbor(1, 1)); }
+
+      if (tl.y < 0) { add(t.neighbor(0, -1)); }
+      if (br.y > 1) { add(t.neighbor(0, 1)); }
+    });
+    return Object.values(result);
+  };
+
+  Particles.prototype.findAssociatedDataTiles = function findAssociatedDataTiles (tileID) {
+    var t = tileID;
+    var found;
+    var matrix = new DOMMatrix();
+    while (!t.isRoot()) {
+      if ((found = this._tiles[t])) { break; }
+      var ref = t.quadrant();
+      var x = ref[0];
+      var y = ref[1];
+      matrix.translateSelf(0.5 * x, 0.5 * y);
+      matrix.scaleSelf(0.5);
+      t = t.parent();
+    }
+    if (!found) { return; }
+    var tileTopLeft = this._tiles[found.neighbor(-1, -1)];
+    var tileTopCenter = this._tiles[found.neighbor(0, -1)];
+    var tileTopRight = this._tiles[found.neighbor(1, -1)];
+    var tileMiddleLeft = this._tiles[found.neighbor(-1, 0)];
+    var tileMiddleCenter = found;
+    var tileMiddleRight = this._tiles[found.neighbor(1, 0)];
+    var tileBottomLeft = this._tiles[found.neighbor(-1, 1)];
+    var tileBottomCenter = this._tiles[found.neighbor(0, 1)];
+    var tileBottomRight = this._tiles[found.neighbor(1, 1)];
+    matrix.translateSelf(-0.5, -0.5);
+    matrix.scaleSelf(2, 2);
+
+    var tl = matrix.transformPoint(new window.DOMPoint(0, 0));
+    var br = matrix.transformPoint(new window.DOMPoint(1, 1));
+
+    if (!tileMiddleCenter) { return; }
+
+    if (tl.x < 0 && tl.y < 0 && !tileTopLeft) { return; }
+    if (tl.x < 0 && !tileMiddleLeft) { return; }
+    if (tl.x < 0 && br.y > 1 && !tileBottomLeft) { return; }
+
+    if (br.x > 1 && tl.y < 0 && !tileTopRight) { return; }
+    if (br.x > 1 && !tileMiddleRight) { return; }
+    if (br.x > 1 && br.y > 1 && !tileBottomRight) { return; }
+
+    if (tl.y < 0 && !tileTopCenter) { return; }
+    if (br.y > 1 && !tileBottomCenter) { return; }
+
+    return {
+      matrix: matrix.toFloat32Array(),
+      tileTopLeft: tileTopLeft || this.nullTile,
+      tileTopCenter: tileTopCenter || this.nullTile,
+      tileTopRight: tileTopRight || this.nullTile,
+      tileMiddleLeft: tileMiddleLeft || this.nullTile,
+      tileMiddleCenter: tileMiddleCenter,
+      tileMiddleRight: tileMiddleRight || this.nullTile,
+      tileBottomLeft: tileBottomLeft || this.nullTile,
+      tileBottomCenter: tileBottomCenter || this.nullTile,
+      tileBottomRight: tileBottomRight || this.nullTile
+    };
+  };
+
+  Particles.prototype.update = function update (gl, tile, data) {
+    bindFramebuffer(gl, this.framebuffer, tile.particleStateTexture1);
     gl.viewport(
       0,
       0,
@@ -526,13 +826,31 @@ var Particles = /*@__PURE__*/(function (Layer$$1) {
     var program = this.updateProgram;
     gl.useProgram(program.program);
 
-    bindTexture(gl, this.windTexture, 0);
-    bindTexture(gl, this.particleStateTexture0, 1);
+    bindTexture(gl, tile.particleStateTexture0, 0);
+
+    bindTexture(gl, data.tileTopLeft.getTexture(gl), 1);
+    bindTexture(gl, data.tileTopCenter.getTexture(gl), 2);
+    bindTexture(gl, data.tileTopRight.getTexture(gl), 3);
+    bindTexture(gl, data.tileMiddleLeft.getTexture(gl), 4);
+    bindTexture(gl, data.tileMiddleCenter.getTexture(gl), 5);
+    bindTexture(gl, data.tileMiddleRight.getTexture(gl), 6);
+    bindTexture(gl, data.tileBottomLeft.getTexture(gl), 7);
+    bindTexture(gl, data.tileBottomCenter.getTexture(gl), 8);
+    bindTexture(gl, data.tileBottomRight.getTexture(gl), 9);
+
+    gl.uniform1i(program.u_particles, 0);
+
+    gl.uniform1i(program.u_wind_top_left, 1);
+    gl.uniform1i(program.u_wind_top_center, 2);
+    gl.uniform1i(program.u_wind_top_right, 3);
+    gl.uniform1i(program.u_wind_middle_left, 4);
+    gl.uniform1i(program.u_wind_middle_center, 5);
+    gl.uniform1i(program.u_wind_middle_right, 6);
+    gl.uniform1i(program.u_wind_bottom_left, 7);
+    gl.uniform1i(program.u_wind_bottom_center, 8);
+    gl.uniform1i(program.u_wind_bottom_right, 9);
 
     bindAttribute(gl, this.quadBuffer, program.a_pos, 2);
-
-    gl.uniform1i(program.u_wind, 0);
-    gl.uniform1i(program.u_particles, 1);
 
     gl.uniform1f(program.u_rand_seed, Math.random());
     gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height);
@@ -541,37 +859,79 @@ var Particles = /*@__PURE__*/(function (Layer$$1) {
     gl.uniform1f(program.u_speed_factor, this.particleSpeed);
     gl.uniform1f(program.u_drop_rate, this.dropRate);
     gl.uniform1f(program.u_drop_rate_bump, this.dropRateBump);
+    gl.uniform1i(program.u_initialize, +!tile.updated);
+    gl.uniformMatrix4fv(program.u_data_matrix, false, data.matrix);
+
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     // swap the particle state textures so the new one becomes the current one
-    var temp = this.particleStateTexture0;
-    this.particleStateTexture0 = this.particleStateTexture1;
-    this.particleStateTexture1 = temp;
-
-    if (blendingEnabled) { gl.enable(gl.BLEND); }
-    this.map.triggerRepaint();
+    var temp = tile.particleStateTexture0;
+    tile.particleStateTexture0 = tile.particleStateTexture1;
+    tile.particleStateTexture1 = temp;
   };
 
-  Particles.prototype.draw = function draw (gl, matrix, dateLineOffset) {
+  Particles.prototype.render = function render (gl, matrix) {
+    var this$1 = this;
+
+    if (this.windData) {
+      this.visibleParticleTiles().forEach(function (tile) {
+        var found = this$1.findAssociatedDataTiles(tile);
+        if (!found) { return; }
+
+        this$1.draw(
+          gl,
+          matrix,
+          this$1._particleTiles[tile],
+          tile.viewMatrix(2),
+          found
+        );
+      });
+    }
+  };
+
+  Particles.prototype.draw = function draw (gl, matrix, tile, offset, data) {
     var program = this.drawProgram;
     gl.useProgram(program.program);
-
-    bindTexture(gl, this.windTexture, 0);
-    bindTexture(gl, this.particleStateTexture0, 1);
-    bindTexture(gl, this.colorRampTexture, 2);
+    bindTexture(gl, tile.particleStateTexture0, 0);
+    bindTexture(gl, data.tileTopLeft.getTexture(gl), 1);
+    bindTexture(gl, data.tileTopCenter.getTexture(gl), 2);
+    bindTexture(gl, data.tileTopRight.getTexture(gl), 3);
+    bindTexture(gl, data.tileMiddleLeft.getTexture(gl), 4);
+    bindTexture(gl, data.tileMiddleCenter.getTexture(gl), 5);
+    bindTexture(gl, data.tileMiddleRight.getTexture(gl), 6);
+    bindTexture(gl, data.tileBottomLeft.getTexture(gl), 7);
+    bindTexture(gl, data.tileBottomCenter.getTexture(gl), 8);
+    bindTexture(gl, data.tileBottomRight.getTexture(gl), 9);
+    bindTexture(gl, this.colorRampTexture, 10);
 
     bindAttribute(gl, this.particleIndexBuffer, program.a_index, 1);
 
-    gl.uniform1i(program.u_wind, 0);
-    gl.uniform1i(program.u_particles, 1);
-    gl.uniform1i(program.u_color_ramp, 2);
+    gl.uniform1i(program.u_particles, 0);
+    gl.uniform1i(program.u_wind_top_left, 1);
+    gl.uniform1i(program.u_wind_top_center, 2);
+    gl.uniform1i(program.u_wind_top_right, 3);
+    gl.uniform1i(program.u_wind_middle_left, 4);
+    gl.uniform1i(program.u_wind_middle_center, 5);
+    gl.uniform1i(program.u_wind_middle_right, 6);
+    gl.uniform1i(program.u_wind_bottom_left, 7);
+    gl.uniform1i(program.u_wind_bottom_center, 8);
+    gl.uniform1i(program.u_wind_bottom_right, 9);
+    gl.uniform1i(program.u_color_ramp, 10);
 
     gl.uniform1f(program.u_particles_res, this.particleStateResolution);
-    gl.uniform1f(program.u_dateline_offset, dateLineOffset);
+
+    gl.uniformMatrix4fv(program.u_offset, false, offset);
+    gl.uniformMatrix4fv(
+      program.u_offset_inverse,
+      false,
+      matrixInverse(offset)
+    );
+
     gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin);
     gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax);
 
     gl.uniformMatrix4fv(program.u_matrix, false, matrix);
+    gl.uniformMatrix4fv(program.u_data_matrix, false, data.matrix);
 
     gl.drawArrays(gl.POINTS, 0, this._numParticles);
   };
@@ -581,9 +941,7 @@ var Particles = /*@__PURE__*/(function (Layer$$1) {
 
 function particles (options) { return new Particles(options); }
 
-var arrowsVert = "precision mediump float;\n#define GLSLIFY 1\n\nattribute vec2 a_pos;\nattribute vec2 a_corner;\nvarying vec2 v_center;\nvarying float v_size;\nvarying float v_speed;\n\nuniform mat4 u_matrix;\nuniform vec2 u_dimensions;\n\nuniform sampler2D u_wind;\nuniform vec2 u_wind_res;\nuniform vec2 u_wind_min;\nuniform vec2 u_wind_max;\nuniform float u_dateline_offset;\n\nconst float PI = 3.14159265359;\n\n/**\n * Converts mapbox style pseudo-mercator coordinates (this is just like mercator, but the unit isn't a meter, but 0..1\n * spans the entire world) into texture like WGS84 coordinates (this is just like WGS84, but instead of angles, it uses\n * intervals of 0..1).\n */\nvec2 mercatorToWGS84(vec2 xy) {\n    // convert lat into an angle\n    float y = radians(180.0 - xy.y * 360.0);\n    // use the formula to convert mercator -> WGS84\n    y = 360.0 / PI  * atan(exp(y)) - 90.0;\n    // normalize back into 0..1 interval\n    y = y / -180.0 + 0.5;\n    // pass lng through, as it doesn't change\n    return vec2(xy.x, y);\n}\n\n/**\n * Wind speed lookup. Returns a vector that isn't re-normalized to real world units.\n * Uses manual bilinear filtering based on 4 adjacent pixels for smooth interpolation.\n */\nvec2 windSpeedRelative(const vec2 uv) {\n    return texture2D(u_wind, uv).rg; // lower-res hardware filtering\n}\n\nvec2 windSpeed(const vec2 uv) {\n    return mix(u_wind_min, u_wind_max, windSpeedRelative(uv));\n}\n\nmat2 rotation(float angle) {\n    return mat2(cos(angle), -sin(angle),\n                sin(angle), cos(angle));\n}\n\nvoid main() {\n    float ratio = u_dimensions.x/u_dimensions.y;\n    vec2 unit = 0.45 / u_dimensions;\n    vec2 pos = a_pos / u_dimensions;\n\n    vec2 speed = windSpeed(pos);\n    v_speed = length(speed) / length(u_wind_max);\n    float angle = atan(speed.x, speed.y);\n    v_center = a_corner;\n    v_size = length(speed) / length(u_wind_max);\n\n    pos += rotation(angle) *  a_corner * unit;\n    // Fix proportions from rectangular projection to square\n    pos.x *= u_dimensions.x / u_dimensions.y;\n\n    gl_Position =  u_matrix * vec4(pos + vec2(u_dateline_offset, 0), 0, 1);\n    // TODO: This is a HAX because I have no idea why we're seeing double data. This makes it go away at the cost of perf and some ocasional rendering artefacts.\n    if ((pos.x >= 1. || pos.x <= 0.) && u_dateline_offset < 0.0) {\n        gl_Position.y = 10000.0;\n    }\n}\n"; // eslint-disable-line
-
-var arrowsFrag = "precision mediump float;\n#define GLSLIFY 1\n\n#define PI 3.14159265359\n#define TWO_PI 6.28318530718\n\nvarying vec2 v_center;\nvarying float v_size;\nvarying float v_speed;\n\nuniform sampler2D u_color_ramp;\nuniform vec4 u_halo_color;\n\nfloat polygon(vec3 st, int N) {\n    float a = atan(st.x, st.y) + PI;\n  \tfloat r = TWO_PI / float(N);\n\n    float d = cos(floor(0.5 + a / r) * r - a) * length(st.xy);\n    return d;\n}\n\nmat3 scale(vec2 _scale){\n    return mat3(1.0 / _scale.x, 0, 0,\n                0, 1.0 / _scale.y, 0,\n                0, 0, 1);\n}\n\nmat3 translate(vec2 _translate) {\n    return mat3(1, 0, _translate.x,\n                0, 1, _translate.y,\n                0, 0, 1);\n}\n\nfloat arrow(vec3 st, float len) {\n    return min(\n        polygon(st* scale(vec2(0.3)), 3),\n        polygon(st* translate(vec2(-0.00, len / 2.0)) * scale(vec2(0.2, len)), 4)\n    );\n}\n\nvoid main() {\n    vec3 st = vec3(v_center, 1);\n    float size = mix(0.25, 4.0, v_size);\n    float d = arrow(st * translate(vec2(0, -size / 2.0)), size);\n\n    float inside = 1.0 - smoothstep(0.4, 0.405, d);\n    float halo = (1.0 - smoothstep(0.43, 0.435, d)) - inside;\n    vec2 ramp_pos = vec2(\n        fract(16.0 * v_speed),\n        floor(16.0 * v_speed) / 16.0);\n\n    vec4 color = texture2D(u_color_ramp, ramp_pos);\n    gl_FragColor = color * inside + halo * u_halo_color;\n}\n"; // eslint-disable-line
+var arrow = function (gl) { return createProgram(gl, "precision mediump float;uniform vec2 u_dimensions,u_wind_min,u_wind_max;uniform mat4 u_matrix,u_offset;uniform sampler2D u_wind;attribute vec2 a_pos,a_corner;varying vec2 h;varying float g,f;vec2 m(vec2 b){float a=-180.*b.y+90.;a=(180.-57.29578*log(tan(.785398+a*3.141593/360.)))/360.;return vec2(b.x,a);}vec2 n(vec2 b,mat4 c){vec4 a=c*vec4(b,1,1);return a.xy/a.w;}vec2 o(const vec2 a){return texture2D(u_wind,a).rg;}vec2 p(const vec2 a){return mix(u_wind_min,u_wind_max,o(a));}mat2 q(float a){return mat2(cos(a),-sin(a),sin(a),cos(a));}void main(){vec2 c=.45/u_dimensions,a=mod(a_pos/u_dimensions,vec2(1,1)),b=p(a);f=length(b)/length(u_wind_max);float d=atan(b.x,b.y);h=a_corner,g=length(b)/length(u_wind_max),a+=q(d)*a_corner*c,a.x*=u_dimensions.x/u_dimensions.y;vec2 e=n(a,u_offset),i=m(e);gl_Position=u_matrix*vec4(i,0,1);}", "precision mediump float;uniform sampler2D u_color_ramp;uniform vec4 u_halo_color;varying vec2 h;varying float g,f;float k(vec3 a,int d){float b=atan(a.x,a.y)+3.141593,c=6.283185/float(d),e=cos(floor(.5+b/c)*c-b)*length(a.xy);return e;}mat3 l(vec2 a){return mat3(1./a.x,0,0,0,1./a.y,0,0,0,1);}mat3 j(vec2 a){return mat3(1,0,a.x,0,1,a.y,0,0,1);}float r(vec3 a,float b){return min(k(a*l(vec2(.3)),3),k(a*j(vec2(0.,b/2.))*l(vec2(.2,b)),4));}void main(){vec3 d=vec3(h,1);float a=mix(.25,4.,g),b=r(d*j(vec2(0,-a/2.)),a),c=1.-smoothstep(.4,.405,b),e=1.-smoothstep(.43,.435,b)-c;vec2 i=vec2(fract(16.*f),floor(16.*f)/16.);vec4 s=texture2D(u_color_ramp,i);gl_FragColor=s*c+e*u_halo_color;}"); };
 
 var Arrows = /*@__PURE__*/(function (Layer$$1) {
   function Arrows(options) {
@@ -620,6 +978,7 @@ var Arrows = /*@__PURE__*/(function (Layer$$1) {
       },
       options
     );
+    this.pixelToGridRatio = 25;
   }
 
   if ( Layer$$1 ) Arrows.__proto__ = Layer$$1;
@@ -627,7 +986,7 @@ var Arrows = /*@__PURE__*/(function (Layer$$1) {
   Arrows.prototype.constructor = Arrows;
 
   Arrows.prototype.initialize = function initialize (map, gl) {
-    this.arrowsProgram = createProgram(gl, arrowsVert, arrowsFrag);
+    this.arrowsProgram = arrow(gl);
     this.initializeGrid();
   };
 
@@ -674,19 +1033,20 @@ var Arrows = /*@__PURE__*/(function (Layer$$1) {
     // Either we show the grid size of the data, or we show fewer such
     // that these should be about ~minSize.
     return [
-      Math.min(Math.floor((Math.floor(z + 1) * w) / minSize), cols),
-      Math.min(Math.floor((Math.floor(z + 1) * h) / minSize), rows)
+      Math.min(Math.floor((Math.floor(z + 1) * w) / minSize), cols) - 1,
+      Math.min(Math.floor((Math.floor(z + 1) * h) / minSize), rows) - 1
     ];
   };
 
-  Arrows.prototype.draw = function draw (gl, matrix, dateLineOffset) {
+  Arrows.prototype.draw = function draw (gl, matrix, tile, offset) {
+    console.log("drawing", tile);
     var program = this.arrowsProgram;
     gl.useProgram(program.program);
 
     bindAttribute(gl, this.positionsBuffer, program.a_pos, 2);
     bindAttribute(gl, this.cornerBuffer, program.a_corner, 2);
 
-    bindTexture(gl, this.windTexture, 0);
+    bindTexture(gl, tile.getTexture(gl), 0);
     bindTexture(gl, this.colorRampTexture, 2);
 
     gl.uniform1i(program.u_wind, 0);
@@ -705,7 +1065,12 @@ var Arrows = /*@__PURE__*/(function (Layer$$1) {
     gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height);
     gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin);
     gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax);
-    gl.uniform1f(program.u_dateline_offset, dateLineOffset);
+    gl.uniformMatrix4fv(program.u_offset, false, offset);
+    gl.uniformMatrix4fv(
+      program.u_offset_inverse,
+      false,
+      matrixInverse(offset)
+    );
     gl.uniform4f(
       program.u_halo_color,
       this.arrowHaloColor.r,
@@ -723,7 +1088,7 @@ var Arrows = /*@__PURE__*/(function (Layer$$1) {
   return Arrows;
 }(Layer));
 
-function arrow (options) { return new Arrows(options); }
+function arrow$1 (options) { return new Arrows(options); }
 
 function getJSON(url, callback) {
   var xhr = new XMLHttpRequest();
@@ -755,33 +1120,35 @@ function source (relUrl) {
   var data;
   var requestsBeforeMetadataLoaded = new Set();
   var cache = {};
+  var dataCallbacks = [];
 
   getJSON(url, function (windData) {
     data = windData;
-    requestsBeforeMetadataLoaded.forEach(function (coords) {
-      if (cache[coords]) {
+    dataCallbacks.forEach(function (cb) { return cb(data); });
+    requestsBeforeMetadataLoaded.forEach(function (tile) {
+      if (cache[tile]) {
         var req;
-        while ((req = tileRequests[coords].pop())) {
-          dispatchCallback(coords, req);
+        while ((req = tileRequests[tile].pop())) {
+          dispatchCallback(tile, req);
         }
       } else {
-        load.apply(void 0, coords.split("/"));
+        load(tile);
       }
     });
     requestsBeforeMetadataLoaded = [];
   });
 
-  function dispatchCallback(coords, cb) {
-    cb(Object.assign({}, data, { getTexture: cache[coords] }));
+  function dispatchCallback(tile, cb) {
+    cb(Object.assign(tile, { getTexture: cache[tile] }));
   }
 
-  function load(z, x, y) {
+  function load(tile) {
     var windImage = new Image();
     var tileUrl = new URL(
       data.tiles[0]
-        .replace(/{z}/g, z)
-        .replace(/{x}/g, x)
-        .replace(/{y}/g, y),
+        .replace(/{z}/g, tile.z)
+        .replace(/{x}/g, tile.x)
+        .replace(/{y}/g, tile.y),
       url
     );
     if (tileUrl.origin !== window.location.origin) {
@@ -789,40 +1156,45 @@ function source (relUrl) {
     }
     windImage.src = tileUrl;
     windImage.onload = function () {
-      var coords = [z, x, y].join("/");
       var texture;
-      cache[coords] = function (gl) {
+      cache[tile] = function (gl) {
         if (texture) { return texture; }
         texture = createTexture(gl, gl.LINEAR, windImage);
         return texture;
       };
       var req;
-      while ((req = tileRequests[coords].pop())) {
-        dispatchCallback(coords, req);
+      while ((req = tileRequests[tile].pop())) {
+        dispatchCallback(tile, req);
       }
     };
   }
 
   return {
-    loadTile: function loadTile(z, x, y, cb) {
-      var coords = [z, x, y].join("/");
-      if (cache[coords]) {
-        dispatchCallback(coords, cb);
+    metadata: function metadata(cb) {
+      if (data) {
+        cb(data);
+      } else {
+        dataCallbacks.push(cb);
+      }
+    },
+    loadTile: function loadTile(tile, cb) {
+      if (cache[tile]) {
+        dispatchCallback(tile, cb);
       } else {
         if (data) {
-          if (tileRequests[coords]) {
-            tileRequests[coords].push(cb);
+          if (tileRequests[tile]) {
+            tileRequests[tile].push(cb);
           } else {
-            tileRequests[coords] = [cb];
-            load(z, x, y);
+            tileRequests[tile] = [cb];
+            load(tile);
           }
         } else {
-          tileRequests[coords] = (tileRequests[coords] || []).concat([cb]);
-          requestsBeforeMetadataLoaded.add(coords);
+          tileRequests[tile] = (tileRequests[tile] || []).concat([cb]);
+          requestsBeforeMetadataLoaded.add(tile);
         }
       }
     }
   };
 }
 
-export { sampleFill, particles, arrow, source };
+export { sampleFill$1 as sampleFill, particles, arrow$1 as arrow, source };

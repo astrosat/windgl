@@ -1,8 +1,7 @@
 import * as util from "./util";
 import Layer from "./layer";
 
-import backgroundVert from "./shaders/background.vert.glsl";
-import backgroundFrag from "./shaders/background.frag.glsl";
+import { sampleFill } from "./shaders/sampleFill.glsl";
 
 class SampleFill extends Layer {
   constructor(options) {
@@ -53,14 +52,11 @@ class SampleFill extends Layer {
       },
       options
     );
+    this.pixelToGridRatio = 20;
   }
 
   initialize(map, gl) {
-    this.backgroundProgram = util.createProgram(
-      gl,
-      backgroundVert,
-      backgroundFrag
-    );
+    this.backgroundProgram = sampleFill(gl);
 
     this.quadBuffer = util.createBuffer(
       gl,
@@ -72,21 +68,26 @@ class SampleFill extends Layer {
     this.buildColorRamp(expr);
   }
 
-  draw(gl, matrix, dateLineOffset) {
+  draw(gl, matrix, tile, offset) {
     const opacity = this.sampleOpacity;
     const program = this.backgroundProgram;
     gl.useProgram(program.program);
 
     util.bindAttribute(gl, this.quadBuffer, program.a_pos, 2);
 
-    util.bindTexture(gl, this.windTexture, 0);
+    util.bindTexture(gl, tile.getTexture(gl), 0);
     util.bindTexture(gl, this.colorRampTexture, 2);
 
     gl.uniform1i(program.u_wind, 0);
     gl.uniform1i(program.u_color_ramp, 2);
 
     gl.uniform1f(program.u_opacity, opacity);
-    gl.uniform1f(program.u_dateline_offset, dateLineOffset);
+    gl.uniformMatrix4fv(program.u_offset, false, offset);
+    gl.uniformMatrix4fv(
+      program.u_offset_inverse,
+      false,
+      util.matrixInverse(offset)
+    );
     gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height);
     gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin);
     gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax);

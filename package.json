@@ -32,8 +32,13 @@
     "eslint": "^5.15.0",
     "eslint-config-prettier": "^3.1.0",
     "eslint-plugin-prettier": "^3.0.0",
+    "geometry-polyfill": "^1.0.4",
     "gl": "^4.1.1",
+    "gl-shader": "^4.2.1",
     "gl-shader-output": "^2.0.1",
+    "glsl-minifier": "0.0.13",
+    "glslify": "^7.0.0",
+    "glslx": "^0.1.26",
     "jest": "^24.3.1",
     "jest-image-snapshot": "^2.8.1",
     "mapbox-gl": "^0.53.1",
@@ -45,6 +50,7 @@
     "rollup-plugin-commonjs": "^9.2.1",
     "rollup-plugin-glslify": "^1.1.0",
     "rollup-plugin-node-resolve": "^4.0.1",
+    "rollup-pluginutils": "^2.5.0",
     "rollup-watch": "^3.2.2",
     "st": "^1.2.0"
   },
@@ -70,8 +76,7 @@
     }
   },
   "dependencies": {
-    "@mapbox/mapbox-gl-style-spec": "^13.6.0",
-    "gl-shader": "^4.2.1"
+    "@mapbox/mapbox-gl-style-spec": "^13.6.0"
   },
   "peerDependencies": {
     "mapbox-gl": "^0.53.1"

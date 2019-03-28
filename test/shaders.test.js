@@ -1,4 +1,5 @@
 import glsl from "glslify";
+import * as GLSLX from "glslx";
 import { createShaderOutput, createShaderImage } from "./runShader";
 import { configureToMatchImageSnapshot } from "jest-image-snapshot";
 import createShader from "gl-shader";
@@ -66,6 +67,20 @@ describe("wgs84ToMercator", () => {
 });
 
 describe("arrows", () => {
+  const res = GLSLX.compile(
+    glsl.file("../src/shaders/arrow.glsl").replace("#define GLSLIFY 1\n", ""),
+    {
+      disableRewriting: false,
+      format: "json",
+      keepSymbols: false,
+      prettyPrint: true,
+      renaming: "none"
+    }
+  );
+  const arrowFrag = JSON.parse(res.output).shaders.filter(
+    s => s.name === "arrowFragment"
+  )[0].contents;
+
   const shader = gl => {
     const shdr = createShader(
       gl,
@@ -84,7 +99,7 @@ describe("arrows", () => {
               gl_Position = vec4(position, 0.0, 1.0);
           }
       `,
-      glsl.file("../src/shaders/arrows.frag.glsl")
+      arrowFrag
     );
     const texture = util.createTexture(
       gl,

@@ -1,7 +1,6 @@
 import * as util from "./util";
 import Layer from "./layer";
-import arrowsVert from "./shaders/arrows.vert.glsl";
-import arrowsFrag from "./shaders/arrows.frag.glsl";
+import { arrow } from "./shaders/arrow.glsl";
 
 class Arrows extends Layer {
   constructor(options) {
@@ -38,10 +37,11 @@ class Arrows extends Layer {
       },
       options
     );
+    this.pixelToGridRatio = 25;
   }
 
   initialize(map, gl) {
-    this.arrowsProgram = util.createProgram(gl, arrowsVert, arrowsFrag);
+    this.arrowsProgram = arrow(gl);
     this.initializeGrid();
   }
 
@@ -86,19 +86,19 @@ class Arrows extends Layer {
     // Either we show the grid size of the data, or we show fewer such
     // that these should be about ~minSize.
     return [
-      Math.min(Math.floor((Math.floor(z + 1) * w) / minSize), cols),
-      Math.min(Math.floor((Math.floor(z + 1) * h) / minSize), rows)
+      Math.min(Math.floor((Math.floor(z + 1) * w) / minSize), cols) - 1,
+      Math.min(Math.floor((Math.floor(z + 1) * h) / minSize), rows) - 1
     ];
   }
 
-  draw(gl, matrix, dateLineOffset) {
+  draw(gl, matrix, tile, offset) {
     const program = this.arrowsProgram;
     gl.useProgram(program.program);
 
     util.bindAttribute(gl, this.positionsBuffer, program.a_pos, 2);
     util.bindAttribute(gl, this.cornerBuffer, program.a_corner, 2);
 
-    util.bindTexture(gl, this.windTexture, 0);
+    util.bindTexture(gl, tile.getTexture(gl), 0);
     util.bindTexture(gl, this.colorRampTexture, 2);
 
     gl.uniform1i(program.u_wind, 0);
@@ -115,7 +115,7 @@ class Arrows extends Layer {
     gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height);
     gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin);
     gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax);
-    gl.uniform1f(program.u_dateline_offset, dateLineOffset);
+    gl.uniformMatrix4fv(program.u_offset, false, offset);
     gl.uniform4f(
       program.u_halo_color,
       this.arrowHaloColor.r,
