@@ -49,9 +49,6 @@ function makeGLSL(userOptions = {}) {
       }
 
       const program = JSON.parse(compiled.output);
-      //
-      // this.error(id + "\n" + compiled.output);
-      // return;
 
       const {
         fragmentShaders,
