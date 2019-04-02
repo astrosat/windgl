@@ -74,7 +74,7 @@ function makeGLSL(userOptions = {}) {
       );
 
       const assembledShaders = [];
-      Object.keys(vertexShaders).map(key => {
+      Object.keys(vertexShaders).forEach(key => {
         if (fragmentShaders[key]) {
           assembledShaders.push(
             `export const ${key} = gl => createProgram(gl, ${JSON.stringify(
@@ -90,7 +90,7 @@ function makeGLSL(userOptions = {}) {
         }
       });
 
-      Object.keys(fragmentShaders).map(key => {
+      Object.keys(fragmentShaders).forEach(key => {
         assembledShaders.push(
           `export const ${key}Fragment = ${JSON.stringify(
             fragmentShaders[key]
@@ -98,7 +98,7 @@ function makeGLSL(userOptions = {}) {
         );
       });
 
-      Object.keys(otherShaders).map(key => {
+      Object.keys(otherShaders).forEach(key => {
         if (key === "main") {
           assembledShaders.push(
             `export default ${JSON.stringify(otherShaders[key])};`

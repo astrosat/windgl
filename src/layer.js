@@ -188,6 +188,7 @@ export default class Layer {
     });
   }
 
+  // Finds all tiles that should be loaded from the server. This gets overriden in some subclasses.
   computeLoadableTiles() {
     return this.computeVisibleTiles(
       this.pixelToGridRatio,
