@@ -103,13 +103,13 @@ def build_meta_json(data_dir, datetime, width, height, umin, umax, vmin, vmax):
         "vMax": round(vmax, 2),
         "minzoom": 0,
         "maxzoom": 2,
-        "tiles": [f"{data_dir}/{{z}}/{{x}}/{{y}}.png"],
+        "tiles": [f"{{z}}/{{x}}/{{y}}.png"],
     }
 
 
 def write_json(data_dir, json_output):
-    with open(f"{data_dir}tile.json", "w") as f:
-        f.write(json.dumps(json_output, indent=4, separators=(",", ": ")))
+    with open(os.path.join(data_dir, "tile.json"), "w") as f:
+        f.write(json.dumps(json_output))
 
 
 def write_image(filename, image):
@@ -153,8 +153,11 @@ if __name__ == "__main__":
 
     tilejson_variables = {}
 
-    tilejson_variables["height"] = 180
-    tilejson_variables["width"] = 360
+    height = 180
+    width = 360
+
+    tilejson_variables["height"] = height
+    tilejson_variables["width"] = width
 
     try:
         tilejson_variables["datetime"] = datetime.strptime(
@@ -163,9 +166,9 @@ if __name__ == "__main__":
     except ValueError as e:
         raise ValueError("Invalid timestamp entered.") from e
 
-    for product in ("1p00", "0p50", "0p25"):
-        filename = f"{args.output_dir}{args.timestamp}_{product}.grb"
-        
+    for product, zoom in [("1p00", 0), ("0p50", 1), ("0p25", 2)]:
+        filename = os.path.join(args.output_dir, f"{args.timestamp}_{product}.grb")
+
         # TODO: can probably streamline these steps without saving intermediary files
         download_data(filename, product, args.timestamp)
         bands = import_data(filename)
@@ -179,51 +182,15 @@ if __name__ == "__main__":
 
         image = reshape_as_image(bands)
 
-        if product == "1p00":
-            filename = f"{args.timestamp}/0/0/0.png"
-            write_image(filename, image)
-
-        elif product == "0p50":
-            tiles = [
-                ("0/1", (0, 180, 0, 360)),
-                ("1/1", (0, 180, 360, 720)),
-                ("0/0", (180, 360, 0, 360)),
-                ("1/0", (180, 360, 360, 720)),
-            ]
-
-            for path, slices in tiles:
-                filename = f"{args.timestamp}/1/{path}.png"
-                image_cut = slice_image(image, *slices)
+        for x in range(2 ** zoom):
+            for y in range(2 ** zoom):
+                filename = os.path.join(args.output_dir, args.timestamp, str(zoom), str(x), f"{y}.png")
+                image_cut = slice_image(image, y * height, (y + 1) * height, x * width, (x + 1) * width)
                 write_image(filename, image_cut)
 
-        elif product == "0p25":
-            tiles = [
-                ("0/3", (0, 180, 0, 360)),
-                ("1/3", (0, 180, 360, 720)),
-                ("2/3", (0, 180, 720, 1080)),
-                ("3/3", (0, 180, 1080, 1440)),
-                ("0/2", (180, 360, 0, 360)),
-                ("1/2", (180, 360, 360, 720)),
-                ("2/2", (180, 360, 720, 1080)),
-                ("3/2", (180, 360, 1080, 1440)),
-                ("0/1", (360, 540, 0, 360)),
-                ("1/1", (360, 540, 360, 720)),
-                ("2/1", (360, 540, 720, 1080)),
-                ("3/1", (360, 540, 1080, 1440)),
-                ("0/0", (540, 720, 0, 360)),
-                ("1/0", (540, 720, 360, 720)),
-                ("2/0", (540, 720, 720, 1080)),
-                ("3/0", (540, 720, 1080, 1440)),
-            ]
-
-            for path, slices in tiles:
-                filename = f"{args.timestamp}/2/{path}.png"
-                image_cut = slice_image(image, *slices)
-                write_image(filename, image_cut)
-
-            json_output = build_meta_json(args.timestamp, **tilejson_variables)
-            write_json(f"{args.output_dir}/{args.timestamp}/", json_output)
+    json_output = build_meta_json(args.timestamp, **tilejson_variables)
+    write_json(os.path.join(args.output_dir, args.timestamp), json_output)
 
     if args.clean:
-        for f in glob.glob(f"{args.output_dir}*.grb"):
+        for f in glob.glob(os.path.join(args.output_dir, "*.grb")):
             os.remove(f)

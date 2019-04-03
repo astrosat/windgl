@@ -1,5 +1,6 @@
 import * as util from "./util";
 import { expression } from "mapbox-gl/dist/style-spec";
+import tileID from "./tileID";
 
 /**
  * This is an abstract base class that handles most of the mapbox specific
@@ -15,8 +16,10 @@ export default class Layer {
 
     this._zoomUpdatable = {};
     this._propsOnInit = {};
+    this.tileZoomOffset = 0;
+    this._tiles = {};
 
-    this.source.loadTile(0, 0, 0, this.setWind.bind(this));
+    this.source.metadata(this.setWind.bind(this));
 
     // This will initialize the default values
     Object.keys(this.propertySpec).forEach(spec => {
@@ -105,6 +108,7 @@ export default class Layer {
     );
   }
 
+  // data management
   setWind(windData) {
     this.windData = windData;
     if (this.map) {
@@ -112,6 +116,46 @@ export default class Layer {
       this.map.triggerRepaint();
     }
   }
+
+  computeVisibleTiles(pixelToGridRatio, tileSize, { maxzoom, minzoom }) {
+    const pixels = this.gl.canvas.height * this.map.getZoom();
+    const actualZoom = pixels / (tileSize * pixelToGridRatio);
+
+    const practicalZoom = Math.max(
+      Math.min(maxzoom, Math.floor(actualZoom)),
+      minzoom
+    );
+
+    const bounds = this.map.getBounds();
+
+    const tileCount = 2 ** practicalZoom;
+
+    const top = Math.floor(((90 - bounds.getNorth()) / 180) * tileCount);
+    const bottom = Math.ceil(((90 - bounds.getSouth()) / 180) * tileCount);
+    const left = Math.floor(((bounds.getWest() + 180) / 360) * tileCount);
+    const right = Math.ceil(((bounds.getEast() + 180) / 360) * tileCount);
+
+    const tiles = [];
+    for (let y = top; y < bottom; y++) {
+      for (let x = left; x < right; x++) {
+        let properX = x % tileCount;
+        if (properX < 0) {
+          properX += tileCount;
+        }
+        tiles.push(
+          tileID(practicalZoom, properX, y, Math.floor(x / tileCount))
+        );
+      }
+    }
+    return tiles;
+  }
+
+  tileLoaded(tile) {
+    this._tiles[tile] = tile;
+    this.map.triggerRepaint();
+  }
+
+  // lifecycle
 
   // called by mapboxgl
   onAdd(map, gl) {
@@ -128,21 +172,37 @@ export default class Layer {
   // stuff to get the properties in order
   _initialize() {
     this.initialize(this.map, this.gl);
-    this.windTexture = this.windData.getTexture(this.gl);
     Object.entries(this._propsOnInit).forEach(([k, v]) => {
       this._setPropertyValue(k, v);
     });
     this._propsOnInit = {};
-    Object.entries(this._zoomUpdatable).forEach(([k, v]) => {
-      this._setPropertyValue(k, v);
-    });
+    this.zoom();
     this.map.on("zoom", this.zoom.bind(this));
+    this.map.on("move", this.move.bind(this));
   }
 
   // Most properties allow zoom dependent styling. Here we update those.
   zoom() {
     Object.entries(this._zoomUpdatable).forEach(([k, v]) => {
       this._setPropertyValue(k, v);
+    });
+  }
+
+  // Finds all tiles that should be loaded from the server. This gets overriden in some subclasses.
+  computeLoadableTiles() {
+    return this.computeVisibleTiles(
+      this.pixelToGridRatio,
+      Math.min(this.windData.width, this.windData.height),
+      this.windData
+    );
+  }
+
+  move() {
+    const tiles = this.computeLoadableTiles();
+    tiles.forEach(tile => {
+      if (!this._tiles[tile]) {
+        this.source.loadTile(tile, this.tileLoaded.bind(this));
+      }
     });
   }
 
@@ -156,16 +216,15 @@ export default class Layer {
   // called by mapboxgl
   render(gl, matrix) {
     if (this.windData) {
-      const bounds = this.map.getBounds();
-      const eastIter = Math.max(0, Math.ceil((bounds.getEast() - 180) / 360));
-      const westIter = Math.max(0, Math.ceil((bounds.getWest() + 180) / -360));
-      this.draw(gl, matrix, 0);
-      for (let i = 1; i <= eastIter; i++) {
-        this.draw(gl, matrix, i);
-      }
-      for (let i = 1; i <= westIter; i++) {
-        this.draw(gl, matrix, -i);
-      }
+      this.computeVisibleTiles(
+        this.pixelToGridRatio,
+        Math.min(this.windData.width, this.windData.height),
+        this.windData
+      ).forEach(tile => {
+        const texture = this._tiles[tile];
+        if (!texture) return;
+        this.draw(gl, matrix, texture, tile.viewMatrix());
+      });
     }
   }
 }

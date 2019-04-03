@@ -148,7 +148,7 @@ function initializeConfig(container, { style, layers }) {
     style
   });
   map.on("load", () => {
-    const source = windGL.source("wind/2016112006.json");
+    const source = windGL.source("wind/2019031012/tile.json");
     layers.forEach(({ type, after, properties }) => {
       const layer = windGL[type](
         Object.assign(

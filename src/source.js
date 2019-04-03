@@ -30,33 +30,35 @@ export default relUrl => {
   let data;
   let requestsBeforeMetadataLoaded = new Set();
   let cache = {};
+  let dataCallbacks = [];
 
   getJSON(url, windData => {
     data = windData;
-    requestsBeforeMetadataLoaded.forEach(coords => {
-      if (cache[coords]) {
+    dataCallbacks.forEach(cb => cb(data));
+    requestsBeforeMetadataLoaded.forEach(tile => {
+      if (cache[tile]) {
         let req;
-        while ((req = tileRequests[coords].pop())) {
-          dispatchCallback(coords, req);
+        while ((req = tileRequests[tile].pop())) {
+          dispatchCallback(tile, req);
         }
       } else {
-        load(...coords.split("/"));
+        load(tile);
       }
     });
     requestsBeforeMetadataLoaded = [];
   });
 
-  function dispatchCallback(coords, cb) {
-    cb(Object.assign({}, data, { getTexture: cache[coords] }));
+  function dispatchCallback(tile, cb) {
+    cb(Object.assign(tile, { getTexture: cache[tile] }));
   }
 
-  function load(z, x, y) {
+  function load(tile) {
     const windImage = new Image();
     const tileUrl = new URL(
       data.tiles[0]
-        .replace(/{z}/g, z)
-        .replace(/{x}/g, x)
-        .replace(/{y}/g, y),
+        .replace(/{z}/g, tile.z)
+        .replace(/{x}/g, tile.x)
+        .replace(/{y}/g, tile.y),
       url
     );
     if (tileUrl.origin !== window.location.origin) {
@@ -64,36 +66,41 @@ export default relUrl => {
     }
     windImage.src = tileUrl;
     windImage.onload = () => {
-      const coords = [z, x, y].join("/");
       let texture;
-      cache[coords] = gl => {
+      cache[tile] = gl => {
         if (texture) return texture;
         texture = util.createTexture(gl, gl.LINEAR, windImage);
         return texture;
       };
       let req;
-      while ((req = tileRequests[coords].pop())) {
-        dispatchCallback(coords, req);
+      while ((req = tileRequests[tile].pop())) {
+        dispatchCallback(tile, req);
       }
     };
   }
 
   return {
-    loadTile(z, x, y, cb) {
-      const coords = [z, x, y].join("/");
-      if (cache[coords]) {
-        dispatchCallback(coords, cb);
+    metadata(cb) {
+      if (data) {
+        cb(data);
+      } else {
+        dataCallbacks.push(cb);
+      }
+    },
+    loadTile(tile, cb) {
+      if (cache[tile]) {
+        dispatchCallback(tile, cb);
       } else {
         if (data) {
-          if (tileRequests[coords]) {
-            tileRequests[coords].push(cb);
+          if (tileRequests[tile]) {
+            tileRequests[tile].push(cb);
           } else {
-            tileRequests[coords] = [cb];
-            load(z, x, y);
+            tileRequests[tile] = [cb];
+            load(tile);
           }
         } else {
-          tileRequests[coords] = (tileRequests[coords] || []).concat([cb]);
-          requestsBeforeMetadataLoaded.add(coords);
+          tileRequests[tile] = (tileRequests[tile] || []).concat([cb]);
+          requestsBeforeMetadataLoaded.add(tile);
         }
       }
     }
