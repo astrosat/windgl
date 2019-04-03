@@ -21,13 +21,11 @@ const tile = (z, x, y, wrap = 0) => ({
     ];
   },
   siblings() {
-    if (z == 0) {
-      return [];
-    } else {
-      return this.parent()
-        .children()
-        .filter(t => !this.isEqual(t));
-    }
+    return z === 0
+      ? []
+      : this.parent()
+          .children()
+          .filter(t => !this.isEqual(t));
   },
   isEqual(other) {
     other.x === x && other.y === y && other.z === z && other.wrap === wrap;
