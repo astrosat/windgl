@@ -113,10 +113,6 @@ A `color` value. You can interpolate based on zoom or using data-driven styling 
 
 A `color` value. You can interpolate based on zoom. The color of an outline drawn around the arrow. Defaults to transparent.
 
-## Limitations
-
-3. Datasource tiling isn't implemented.
-
 ## Data
 
 This visualization is designed to visualize wind speed data based on a regular grid - such that is typically available from forecast models. This data is encoded in a texture in [plate carrée](https://en.wikipedia.org/wiki/Equirectangular_projection) projection where the R channel corresponds to x (or u), and the G channel corresponds to y (or v). However, these encodings are relative to the total observed range which must be encoded in an accompanying JSON file:

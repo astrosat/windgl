@@ -1,5 +1,5 @@
 {
-  "name": "windGL",
+  "name": "@astrosat/windgl",
   "version": "0.1.0",
   "description": "A MapboxGL plugin for animated GRIB data visualization",
   "main": "dist/windgl.cjs.js",
@@ -9,6 +9,7 @@
     "dist"
   ],
   "scripts": {
+    "prepublishOnly": "npm run build",
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "test": "if test \"$CI\" = 'true' || test \"$TRAVIS\" = 'true'; then \n  eslint src && jest \nelse jest --watch \nfi",
