@@ -134,3 +134,7 @@ This visualization is designed to visualize wind speed data based on a regular g
 The format is designed for tiling, but this hasn't been implemented in the visualization yet.
 
 You can use the provided tool to get the data. Simply go to the `data` directory, create a python virtualenv with dependencies using Pipenv and the provided pipfile. Then run `gfswind2png.py --help` for instructions.
+
+## Acknowledgments
+
+This code started as a fork of [mapbox/webgl-wind](https://github.com/mapbox/webgl-wind).
