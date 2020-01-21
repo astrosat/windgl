@@ -79,6 +79,12 @@ vec2 update(vec2 pos) {
     vec2 velocity = mix(u_wind_min, u_wind_max, lookup_wind(wind_tex_pos));
     float speed_t = length(velocity) / length(u_wind_max);
 
+    // lookup wind mask in b channel
+    float b = texture2D(u_wind_middle_center, wind_tex_pos).b;
+    // check if mask is > 0.5
+    bool mask = b  > 0.5;
+
+
     vec2 offset = vec2(velocity.x , -velocity.y) * 0.0001 * u_speed_factor;
 
     // update particle position
@@ -89,7 +95,13 @@ vec2 update(vec2 pos) {
 
     // drop rate is a chance a particle will restart at random position, to avoid degeneration
     float drop_rate = u_drop_rate + speed_t * u_drop_rate_bump + smoothstep(0.24, 0.5, length(pos - vec2(0.5, 0.5)) * 0.7);
+
+    if (mask) {
+      drop_rate = 1.0;
+    }
+    
     float drop = step(1.0 - drop_rate, rand(seed));
+    
 
     vec2 random_pos = vec2(
         0.5 * rand(seed + 1.3) + 0.25,
@@ -153,5 +165,7 @@ export void particleDrawFragment() {
         fract(16.0 * speed_t),
         floor(16.0 * speed_t) / 16.0);
 
-    gl_FragColor = texture2D(u_color_ramp, ramp_pos);
+    vec4 color = texture2D(u_color_ramp, ramp_pos);
+    color  = color * speed_t *  20.0;
+    gl_FragColor = color;
 }
