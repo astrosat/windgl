@@ -1,0 +1,15 @@
+{
+    "source": "http://gds.deltares.nl",
+    "date": "2020-01-19T12:00:00+00:00",
+    "width": 360,
+    "height": 180,
+    "uMin": -15,
+    "uMax": 15,
+    "vMin": -15,
+    "vMax": 15,
+    "minzoom": 0,
+    "maxzoom": 3,
+    "tiles": [
+        "{z}/{x}/{y}.png"
+    ]
+}

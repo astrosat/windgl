@@ -11,12 +11,31 @@ let map1, map2;
 
 const configs = [
   {
-    style: "mapbox://styles/mapbox/light-v9",
-    layers: [
-      { type: "sampleFill", after: "road-pedestrian-case" },
-      { type: "particles", after: "waterway-label" }
-    ],
-    flyTo: { zoom: 2 }
+      style: "mapbox://styles/global-data-viewer/cjtss3jfb05w71fmra13u4qqm",
+      layers: [
+          {
+              'id': 'currents-raster',
+              'type': 'raster',
+              'source': {
+                  'type': 'raster',
+                  'tiles': [
+                      'https://earthengine.googleapis.com/map/67fe0dbb33c4c98cf87870935747a8e4/{z}/{x}/{y}?token=11d35863e010fefb4a361bd239eebee7'
+                  ],
+                  'tileSize': 256
+              },
+              'paint': {},
+              'after': "waterway-label"
+          },
+          {
+              type: "particles",
+              properties: {
+                  "particle-color": "rgba(250, 250, 250, 0.5)"
+              }
+          }
+      ],
+      flyTo: {
+          zoom: 2
+      }
   },
   {
     style: "mapbox://styles/mapbox/dark-v9",
@@ -148,18 +167,26 @@ function initializeConfig(container, { style, layers }) {
     style
   });
   map.on("load", () => {
-    const source = windGL.source("wind/2019031012/tile.json");
-    layers.forEach(({ type, after, properties }) => {
-      const layer = windGL[type](
-        Object.assign(
-          {
-            id: type,
-            source
-          },
-          properties || {}
-        )
-      );
-      map.addLayer(layer, after);
+    const source = windGL.source("glossis/tile.json");
+      layers.forEach((layer) => {
+          let { type, after, properties } = layer
+          if (windGL[type]) {
+              layer = windGL[type](
+                  Object.assign(
+                   {
+                       id: type,
+                       source
+                   },
+                      properties || {}
+                  )
+              );
+          }
+          if (after) {
+              map.addLayer(layer, after);
+          } else {
+              map.addLayer(layer)
+          }
+          
     });
   });
   return map;
