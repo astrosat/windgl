@@ -157,15 +157,25 @@ export void particleDrawVertex() {
 }
 
 export void particleDrawFragment() {
-    vec2 velocity = mix(u_wind_min, u_wind_max, windTexture(transform(v_particle_pos, u_data_matrix)));
+  vec2 wind_tex_pos = transform(v_particle_pos, u_data_matrix);
+    vec2 velocity = mix(u_wind_min, u_wind_max, windTexture(wind_tex_pos));
     float speed_t = length(velocity) / length(u_wind_max);
 
+    // lookup wind mask in b channel
+    float b = texture2D(u_wind_middle_center, wind_tex_pos).b;
+    // check if mask is > 0.5
+    bool mask = b  > 0.1;
+    
     // // color ramp is encoded in a 16x16 texture
     vec2 ramp_pos = vec2(
         fract(16.0 * speed_t),
         floor(16.0 * speed_t) / 16.0);
 
     vec4 color = texture2D(u_color_ramp, ramp_pos);
-    color  = color * speed_t *  20.0;
+    // multiplication factor for color (value as function of  speed)
+    // TODO: replace by colorramp
+    
+    float factor = clamp(speed_t * 16.0, 0.0, 1.0);
+    color  = color * factor * float(!mask);
     gl_FragColor = color;
 }
