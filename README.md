@@ -3,6 +3,18 @@
 A WebGL-powered visualization of wind power using custom Mapbox Layers.
 Capable of rendering up to 1 million wind particles at 60fps.
 
+## Project Status
+
+The author, @gampleman no longer works at @astrosat. As such, this project will no longer recieve maintenance from him. 
+Furthermore, this project is not production ready, as there are a [number of bugs](https://github.com/astrosat/windgl/issues). 
+If you wish to make use of this project, consider:
+
+1. Getting in touch with @astrosat to discuss comercial support.
+2. Getting in touch with @gampleman to discuss a consulting arrangement.
+3. Forking this repository and fixing all issues. You are welcome to submit patches here, but please do not expect a speedy review.
+
+As such, the project is currently a nice technical demo, but you should expect putting in significant resources if you wish to make a production implementation.
+
 ## Usage
 
 ```sh
