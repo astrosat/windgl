@@ -82,7 +82,7 @@ vec2 update(vec2 pos) {
     // lookup wind mask in b channel
     float b = texture2D(u_wind_middle_center, wind_tex_pos).b;
     // check if mask is > 0.5
-    bool mask = b  > 0.5;
+    bool mask = b  > 0.1;
 
 
     vec2 offset = vec2(velocity.x , -velocity.y) * 0.0001 * u_speed_factor;
@@ -98,7 +98,7 @@ vec2 update(vec2 pos) {
 
     if (mask) {
       drop_rate = 1.0;
-    }
+    } 
     
     float drop = step(1.0 - drop_rate, rand(seed));
     
