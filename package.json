@@ -1,7 +1,7 @@
 {
-  "name": "@astrosat/windgl",
-  "version": "0.1.0",
-  "description": "A MapboxGL plugin for animated GRIB data visualization",
+  "name": "@openearth/windgl",
+  "version": "0.1.1",
+  "description": "A MapboxGL plugin for animated flomap data visualization (based on  @astrosat/windgl)",
   "main": "dist/windgl.cjs.js",
   "module": "dist/windgl.esm.js",
   "browser": "dist/windgl.umd.js",
