@@ -169,7 +169,7 @@ class Particles extends Layer {
     const add = tile => (result[tile] = tile);
     this.visibleParticleTiles().forEach(tileID => {
       let t = tileID;
-      let matrix = new DOMMatrix();
+      let matrix = new window.DOMMatrix();
       while (!t.isRoot()) {
         if (t.z <= this.windData.maxzoom) break;
         const [x, y] = t.quadrant();
@@ -203,7 +203,7 @@ class Particles extends Layer {
   findAssociatedDataTiles(tileID) {
     let t = tileID;
     let found;
-    let matrix = new DOMMatrix();
+    let matrix = new window.DOMMatrix();
     while (!t.isRoot()) {
       if ((found = this._tiles[t])) break;
       const [x, y] = t.quadrant();
@@ -303,7 +303,7 @@ class Particles extends Layer {
     gl.uniformMatrix4fv(program.u_data_matrix, false, data.matrix);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
-
+    gl.flush();
     // swap the particle state textures so the new one becomes the current one
     const temp = tile.particleStateTexture0;
     tile.particleStateTexture0 = tile.particleStateTexture1;
@@ -372,6 +372,7 @@ class Particles extends Layer {
     gl.uniformMatrix4fv(program.u_data_matrix, false, data.matrix);
 
     gl.drawArrays(gl.POINTS, 0, this._numParticles);
+    gl.flush();
   }
 }
 

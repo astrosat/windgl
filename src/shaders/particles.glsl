@@ -97,11 +97,33 @@ vec2 update(vec2 pos) {
     return mix(pos, random_pos, drop);
 }
 
+const vec2 bitEnc = vec2(1.,255.);
+const vec2 bitDec = 1./bitEnc;
+
+// decode particle position from pixel RGBA
+vec2 fromRGBA(const vec4 color) {
+  vec4 rounded_color = floor(color * 255.0 + 0.5) / 255.0;
+  float x = dot(rounded_color.rg, bitDec);
+  float y = dot(rounded_color.ba, bitDec);
+  return vec2(x, y);
+}
+
+// encode particle position to pixel RGBA
+vec4 toRGBA (const vec2 pos) {
+  vec2 rg = bitEnc * pos.x;
+  rg = fract(rg);
+  rg -= rg.yy * vec2(1. / 255., 0.);
+
+  vec2 ba = bitEnc * pos.y;
+  ba = fract(ba);
+  ba -= ba.yy * vec2(1. / 255., 0.);
+
+  return vec4(rg, ba);
+}
+
 export void particleUpdateFragment() {
     vec4 color = texture2D(u_particles, v_tex_pos);
-    vec2 pos = vec2(
-        color.r / 255.0 + color.b,
-        color.g / 255.0 + color.a); // decode particle position from pixel RGBA
+    vec2 pos = fromRGBA(color); // decode particle position from pixel RGBA
 
     pos = update(pos);
     if (u_initialize) {
@@ -111,9 +133,7 @@ export void particleUpdateFragment() {
     }
 
     // encode the new particle position back into RGBA
-    gl_FragColor = vec4(
-        fract(pos * 255.0),
-        floor(pos * 255.0) / 255.0);
+    gl_FragColor = toRGBA(pos);
 }
 
 attribute float a_index;
@@ -130,9 +150,7 @@ export void particleDrawVertex() {
         floor(a_index / u_particles_res) / u_particles_res));
 
     // decode current particle position from the pixel's RGBA value
-    vec2 relativeCoordsWGS84 = vec2(
-        color.r / 255.0 + color.b,
-        color.g / 255.0 + color.a);
+    vec2 relativeCoordsWGS84 = fromRGBA(color);
 
     vec2 worldCoordsWGS84 = transform(relativeCoordsWGS84, u_offset);
     vec2 worldCoordsMerc = wgs84ToMercator(worldCoordsWGS84);
