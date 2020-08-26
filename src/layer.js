@@ -208,9 +208,8 @@ export default class Layer {
 
   // This is called when the map is destroyed or the gl context lost.
   onRemove(map) {
-    delete this.gl;
-    delete this.map;
     map.off("zoom", this.zoom);
+    map.off("move", this.move);
   }
 
   // called by mapboxgl
